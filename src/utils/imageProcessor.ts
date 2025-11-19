@@ -83,8 +83,6 @@ export async function compressImage(
   maxDimension: number = MAX_DIMENSION,
   maxSize: number = MAX_COMPRESSED_SIZE
 ): Promise<ProcessedImage> {
-  const metadata = await extractImageMetadata(file);
-  const { width, height } = metadata.dimensions;
   
   // 加载图片并修正EXIF方向
   const img = await loadImage(file);
@@ -151,7 +149,6 @@ async function fixImageOrientation(img: HTMLImageElement, file: File): Promise<H
   try {
     const arrayBuffer = await file.arrayBuffer();
     const view = new DataView(arrayBuffer);
-    const length = view.byteLength;
     
     // 检查JPEG标记
     if (view.getUint16(0, false) === 0xFFD8) {
