@@ -23,6 +23,10 @@ export default {
         return await handleAnalyze(request, config);
       }
 
+      if (url.pathname === '/health' && request.method === 'GET') {
+        return handleHealth();
+      }
+
       return jsonResponse({ error: 'Not Found' }, 404);
     } catch (error: any) {
       console.error('Worker error:', error);
@@ -109,6 +113,17 @@ async function handleAnalyze(request: Request, config: any): Promise<Response> {
       500
     );
   }
+}
+
+/**
+ * 处理健康检查
+ */
+function handleHealth(): Response {
+  return jsonResponse({
+    status: 'healthy',
+    timestamp: Date.now(),
+    version: '1.0.0',
+  });
 }
 
 /**

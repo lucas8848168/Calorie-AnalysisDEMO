@@ -2,8 +2,8 @@ import { ImageMetadata, ProcessedImage } from '../types';
 
 // 支持的图片格式
 const SUPPORTED_FORMATS = ['image/jpeg', 'image/png', 'image/webp'];
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-const MAX_DIMENSION = 1024; // 降低到1024以加快处理
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_DIMENSION = 2048; // 优化为2048px以提升识别准确度
 const MAX_COMPRESSED_SIZE = 1 * 1024 * 1024; // 1MB
 
 /**
@@ -86,17 +86,21 @@ export async function compressImage(
   const metadata = await extractImageMetadata(file);
   const { width, height } = metadata.dimensions;
   
-  // 计算新尺寸
-  let newWidth = width;
-  let newHeight = height;
+  // 加载图片并修正EXIF方向
+  const img = await loadImage(file);
+  const orientedCanvas = await fixImageOrientation(img, file);
   
-  if (width > maxDimension || height > maxDimension) {
-    const ratio = Math.min(maxDimension / width, maxDimension / height);
-    newWidth = Math.floor(width * ratio);
-    newHeight = Math.floor(height * ratio);
+  // 计算新尺寸
+  let newWidth = orientedCanvas.width;
+  let newHeight = orientedCanvas.height;
+  
+  if (newWidth > maxDimension || newHeight > maxDimension) {
+    const ratio = Math.min(maxDimension / newWidth, maxDimension / newHeight);
+    newWidth = Math.floor(newWidth * ratio);
+    newHeight = Math.floor(newHeight * ratio);
   }
   
-  // 创建canvas进行压缩
+  // 创建最终canvas进行压缩
   const canvas = document.createElement('canvas');
   canvas.width = newWidth;
   canvas.height = newHeight;
@@ -106,16 +110,16 @@ export async function compressImage(
     throw new Error('COMPRESSION_FAILED');
   }
   
-  // 加载图片
-  const img = await loadImage(file);
-  ctx.drawImage(img, 0, 0, newWidth, newHeight);
+  // 绘制修正方向后的图片
+  ctx.drawImage(orientedCanvas, 0, 0, newWidth, newHeight);
   
   // 渐进式压缩直到满足大小要求
-  let quality = 0.9;
+  let quality = 0.92;
   let dataUrl = canvas.toDataURL('image/jpeg', quality);
   
-  while (dataUrl.length > maxSize && quality > 0.1) {
-    quality -= 0.1;
+  // 动态调整压缩质量
+  while (dataUrl.length > maxSize * 1.37 && quality > 0.5) {
+    quality -= 0.08;
     dataUrl = canvas.toDataURL('image/jpeg', quality);
   }
   
@@ -129,6 +133,102 @@ export async function compressImage(
     dimensions: { width: newWidth, height: newHeight },
     format: 'jpeg',
   };
+}
+
+/**
+ * 修正图片EXIF方向
+ */
+async function fixImageOrientation(img: HTMLImageElement, file: File): Promise<HTMLCanvasElement> {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  
+  if (!ctx) {
+    throw new Error('COMPRESSION_FAILED');
+  }
+
+  // 读取EXIF方向信息
+  let orientation = 1;
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const view = new DataView(arrayBuffer);
+    const length = view.byteLength;
+    
+    // 检查JPEG标记
+    if (view.getUint16(0, false) === 0xFFD8) {
+      const length = view.byteLength;
+      let offset = 2;
+      
+      while (offset < length) {
+        if (view.getUint16(offset + 2, false) <= 8) break;
+        const marker = view.getUint16(offset, false);
+        offset += 2;
+        
+        if (marker === 0xFFE1) {
+          // EXIF标记
+          if (view.getUint32(offset += 2, false) !== 0x45786966) break;
+          
+          const little = view.getUint16(offset += 6, false) === 0x4949;
+          offset += view.getUint32(offset + 4, little);
+          const tags = view.getUint16(offset, little);
+          offset += 2;
+          
+          for (let i = 0; i < tags; i++) {
+            if (view.getUint16(offset + (i * 12), little) === 0x0112) {
+              orientation = view.getUint16(offset + (i * 12) + 8, little);
+              break;
+            }
+          }
+          break;
+        } else if ((marker & 0xFF00) !== 0xFF00) {
+          break;
+        } else {
+          offset += view.getUint16(offset, false);
+        }
+      }
+    }
+  } catch (e) {
+    // 如果读取EXIF失败，使用默认方向
+    console.warn('Failed to read EXIF orientation:', e);
+  }
+
+  // 根据方向设置canvas尺寸和变换
+  const { width, height } = img;
+  
+  if (orientation > 4) {
+    canvas.width = height;
+    canvas.height = width;
+  } else {
+    canvas.width = width;
+    canvas.height = height;
+  }
+
+  // 应用变换
+  switch (orientation) {
+    case 2:
+      ctx.transform(-1, 0, 0, 1, width, 0);
+      break;
+    case 3:
+      ctx.transform(-1, 0, 0, -1, width, height);
+      break;
+    case 4:
+      ctx.transform(1, 0, 0, -1, 0, height);
+      break;
+    case 5:
+      ctx.transform(0, 1, 1, 0, 0, 0);
+      break;
+    case 6:
+      ctx.transform(0, 1, -1, 0, height, 0);
+      break;
+    case 7:
+      ctx.transform(0, -1, -1, 0, height, width);
+      break;
+    case 8:
+      ctx.transform(0, -1, 1, 0, 0, width);
+      break;
+  }
+
+  ctx.drawImage(img, 0, 0);
+  return canvas;
 }
 
 /**

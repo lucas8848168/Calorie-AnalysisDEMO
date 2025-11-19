@@ -10,7 +10,12 @@
     "test": "vitest",
     "test:ui": "vitest --ui"
   },
-  "keywords": ["food", "calorie", "nutrition", "ai"],
+  "keywords": [
+    "food",
+    "calorie",
+    "nutrition",
+    "ai"
+  ],
   "author": "",
   "license": "ISC",
   "devDependencies": {
@@ -26,6 +31,8 @@
     "vitest": "^4.0.10"
   },
   "dependencies": {
+    "@tensorflow-models/mobilenet": "^2.1.1",
+    "@tensorflow/tfjs": "^4.22.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   }

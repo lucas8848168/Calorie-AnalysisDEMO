@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { ImageUploaderProps } from '../types';
 import { processImage } from '../utils/imageProcessor';
+import { detectFood } from '../services/foodDetector';
 import './ImageUploader.css';
 
 const ImageUploader: React.FC<ImageUploaderProps> = ({
@@ -26,6 +27,27 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
       // 显示预览
       setPreview(processed.dataUrl);
       
+      // 本地食物检测（异步，不阻塞预览）
+      detectFood(processed.dataUrl)
+        .then(result => {
+          if (!result.isFood && result.confidence > 0) {
+            // 检测到非食物，但不强制阻止（给用户提示）
+            console.warn('Food detection:', result);
+            if (result.confidence > 0.6) {
+              onError(new Error(
+                `检测到这可能不是食物图片（${result.predictions[0]?.className}），` +
+                '但您仍可继续分析。如果识别不准确，请上传清晰的食物图片。'
+              ));
+            }
+          } else {
+            console.log('Food detected:', result);
+          }
+        })
+        .catch(err => {
+          console.warn('Food detection failed:', err);
+          // 检测失败不影响主流程
+        });
+      
       // 通知父组件
       onImageProcessed(processed);
     } catch (error: any) {
@@ -35,7 +57,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
       if (error.message === 'INVALID_FILE_FORMAT') {
         errorMessage = '不支持的文件格式，请上传 JPEG、PNG 或 WebP 格式的图片';
       } else if (error.message === 'FILE_TOO_LARGE') {
-        errorMessage = '文件过大，请上传小于 5MB 的图片';
+        errorMessage = '文件过大，请上传小于 10MB 的图片';
       } else if (error.message === 'IMAGE_DECODE_ERROR') {
         errorMessage = '图片已损坏或无法读取，请重新选择';
       } else if (error.message === 'COMPRESSION_FAILED') {
@@ -115,7 +137,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
               <polyline points="21 15 16 10 5 21" />
             </svg>
             <p>点击或拖拽上传食物图片</p>
-            <p className="formats">支持 JPEG、PNG、WebP 格式，最大 5MB</p>
+            <p className="formats">支持 JPEG、PNG、WebP 格式，最大 10MB</p>
           </div>
         )}
       </div>

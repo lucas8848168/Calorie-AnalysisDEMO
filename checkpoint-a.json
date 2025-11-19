@@ -1,0 +1,52 @@
+{
+  "checkpoint": "A",
+  "description": "基础优化完成：EXIF校正 + 2048px压缩 + 超时降级 + /health检查",
+  "timestamp": "2025-11-19T00:00:00Z",
+  "git_sha": "18cb3e50f9e798d1f897824cecce5f893e32221a",
+  "files": {
+    "src/utils/imageProcessor.ts": {
+      "md5": "61bae85e49d894788d2120b9d0947d3e",
+      "changes": [
+        "添加EXIF方向自动校正功能",
+        "最大分辨率从1024px提升到2048px",
+        "最大文件大小从5MB提升到10MB",
+        "优化渐进式压缩算法"
+      ]
+    },
+    "src/components/ImageUploader.tsx": {
+      "md5": "e64aa618ad8efb2a94daa9ed92423ef2",
+      "changes": [
+        "更新文件大小提示为10MB"
+      ]
+    },
+    "src/services/apiClient.ts": {
+      "md5": "422f6a39fa62cc28a9fed87903bf3162",
+      "changes": [
+        "添加超时降级策略（30秒 -> 45秒）",
+        "优化错误提示信息"
+      ]
+    },
+    "workers/src/worker.ts": {
+      "md5": "b218bb89005ad5d029bb05e2210c59e0",
+      "changes": [
+        "添加/health健康检查端点"
+      ]
+    }
+  },
+  "optimizations": {
+    "image_processing": {
+      "exif_correction": true,
+      "max_resolution": "2048px",
+      "max_file_size": "10MB",
+      "compression_quality": "dynamic (0.92 -> 0.5)"
+    },
+    "api_timeout": {
+      "primary": "30s",
+      "fallback": "45s"
+    },
+    "health_check": {
+      "endpoint": "/health",
+      "enabled": true
+    }
+  }
+}
