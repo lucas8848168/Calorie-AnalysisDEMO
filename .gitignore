@@ -1,43 +1,89 @@
-# Dependencies
+# ============================================
+# 推荐的 .gitignore 配置（安全加强版）
+# ============================================
+
+# -------------------- 依赖 --------------------
 node_modules/
 workers/node_modules/
 
-# Build outputs
+# -------------------- 构建产物 --------------------
 dist/
 .output/
+workers/dist/
 
-# Environment variables
+# -------------------- 环境变量（敏感信息）--------------------
+# 所有环境变量文件都不上传
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 workers/.dev.vars
+workers/.env*
 
-# IDE
+# -------------------- IDE --------------------
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# OS
+# -------------------- 操作系统 --------------------
 .DS_Store
 Thumbs.db
 
-# Logs
+# -------------------- 日志 --------------------
 logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Cloudflare
+# -------------------- Cloudflare --------------------
 .wrangler/
 wrangler.toml.backup
 
-# Testing
+# -------------------- 测试 --------------------
 coverage/
 .nyc_output/
 
-# Temporary files
+# -------------------- 临时文件 --------------------
 *.tmp
 .cache/
+
+# -------------------- 核心业务逻辑（可选）--------------------
+# 如果不想开源后端核心代码，取消下面的注释
+# workers/src/doubaoClient.ts
+# workers/src/config.ts
+# workers/src/worker.ts
+
+# -------------------- 敏感文档 --------------------
+# 包含部署信息、API 密钥配置的文档
+DEPLOYMENT_*.md
+GITHUB_*_GUIDE.md
+GITHUB_*_COMPLETE.md
+GITHUB_*_SUCCESS.md
+快速部署指引.md
+CLOUDFLARE_FREE_TIER_ANALYSIS.md
+
+# -------------------- 项目管理文档（可选）--------------------
+# 内部项目管理文档，不需要公开
+TASK_*.md
+P1_*.md
+*_COMPLETION_*.md
+*_CHECKPOINT_*.md
+PROJECT_FINAL_ARCHIVE.md
+PROJECT_ORGANIZATION_LOG.md
+PROJECT_PRESENTATION_SUMMARY.md
+UX_OPTIMIZATION_RECOMMENDATIONS.md
+
+# -------------------- 私有目录 --------------------
+# 存放所有不想公开的文件
+.private/
+
+# -------------------- 安全分析文档（可选）--------------------
+# 这些是分析文档，可以选择不上传
+# SECURITY_ANALYSIS.md
+# SECURITY_SOLUTION.md
+
+# 后端核心代码（保护商业逻辑）
+workers/src/doubaoClient.ts
+workers/src/config.ts
