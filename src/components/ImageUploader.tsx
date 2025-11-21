@@ -28,23 +28,35 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
       setPreview(processed.dataUrl);
       
       // 本地食物检测（异步，不阻塞预览）
+      console.log('🔍 开始本地食物检测...');
       detectFood(processed.dataUrl)
         .then(result => {
+          console.log('✅ 本地检测完成:', {
+            isFood: result.isFood,
+            confidence: `${(result.confidence * 100).toFixed(1)}%`,
+            topPrediction: result.predictions[0]?.className
+          });
+          
           if (!result.isFood && result.confidence > 0) {
             // 检测到非食物，但不强制阻止（给用户提示）
-            console.warn('Food detection:', result);
+            console.warn('⚠️ 本地模型判断：可能不是食物');
             if (result.confidence > 0.6) {
+              const topClass = result.predictions[0]?.className || '未知物体';
               onError(new Error(
-                `检测到这可能不是食物图片（${result.predictions[0]?.className}），` +
-                '但您仍可继续分析。如果识别不准确，请上传清晰的食物图片。'
+                `⚠️ 本地检测：这可能不是食物图片（识别为：${topClass}）。\n` +
+                '您仍可继续分析，但建议上传清晰的食物图片以获得更准确的结果。'
               ));
             }
+          } else if (result.isFood) {
+            const topFood = result.predictions[0]?.className || '';
+            console.log(`✅ 本地模型判断：检测到食物（${topFood}，置信度 ${(result.confidence * 100).toFixed(1)}%）`);
           } else {
-            console.log('Food detected:', result);
+            console.log('ℹ️ 本地模型：无法确定，将由后端 AI 进行详细分析');
           }
         })
         .catch(err => {
-          console.warn('Food detection failed:', err);
+          console.error('❌ 本地检测失败:', err);
+          console.log('ℹ️ 本地检测失败不影响主流程，将直接使用后端 AI 分析');
           // 检测失败不影响主流程
         });
       

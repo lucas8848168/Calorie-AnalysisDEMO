@@ -87,3 +87,5 @@ UX_OPTIMIZATION_RECOMMENDATIONS.md
 # 后端核心代码（保护商业逻辑）
 workers/src/doubaoClient.ts
 workers/src/config.ts
+demo-portfolio/
+demo-frontend-only/

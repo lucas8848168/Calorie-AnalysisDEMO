@@ -25,6 +25,13 @@ function App() {
     setError(null);
     setCurrentPage('analyzing');
     analysisInProgressRef.current = true;
+    
+    // 首次使用提示（模型下载）
+    const isFirstTime = !localStorage.getItem('model_loaded_before');
+    if (isFirstTime) {
+      console.log('💡 首次使用将下载 AI 模型（约 16MB），请稍候...');
+      localStorage.setItem('model_loaded_before', 'true');
+    }
 
     try {
       // 调用API分析图片
@@ -70,7 +77,22 @@ function App() {
     } catch (err: any) {
       // 只有在分析未被中断时才显示错误
       if (analysisInProgressRef.current) {
-        setError(err.message || '分析失败，请稍后重试');
+        let errorMessage = err.message || '分析失败，请稍后重试';
+        
+        // 解析特殊错误类型
+        if (errorMessage.includes('IMAGE_UNCLEAR:')) {
+          errorMessage = errorMessage.replace('IMAGE_UNCLEAR:', '📷 ');
+        } else if (errorMessage.includes('NOT_FOOD:')) {
+          errorMessage = errorMessage.replace('NOT_FOOD:', '🚫 ');
+        } else if (errorMessage.includes('NO_FOOD_DETECTED:')) {
+          errorMessage = errorMessage.replace('NO_FOOD_DETECTED:', '🔍 ');
+        } else if (errorMessage.includes('REQUEST_TIMEOUT:')) {
+          errorMessage = errorMessage.replace('REQUEST_TIMEOUT:', '⏱️ ');
+        } else if (errorMessage.includes('NETWORK_ERROR:')) {
+          errorMessage = errorMessage.replace('NETWORK_ERROR:', '🌐 ');
+        }
+        
+        setError(errorMessage);
         setCurrentPage('analysis');
       }
     } finally {

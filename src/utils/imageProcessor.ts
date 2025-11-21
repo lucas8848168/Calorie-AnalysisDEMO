@@ -166,7 +166,7 @@ export async function compressImage(
     estimatedSize = Math.floor(dataUrl.length * 0.75);
   }
   
-  console.log(`Image compressed: ${newWidth}x${newHeight}, quality: ${quality.toFixed(2)}, size: ${(estimatedSize / 1024).toFixed(0)}KB`);
+  console.log(`📐 图片压缩完成: ${newWidth}x${newHeight}, 质量: ${(quality * 100).toFixed(0)}%, 大小: ${(estimatedSize / 1024).toFixed(0)}KB`);
   
   return {
     dataUrl,

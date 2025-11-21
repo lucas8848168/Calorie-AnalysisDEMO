@@ -69,9 +69,19 @@ async function analyzeFoodWithTimeout(
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(
-        errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`
-      );
+      const errorCode = errorData.error?.code || '';
+      const errorMessage = errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`;
+      
+      // 保留错误代码前缀，让 App.tsx 能够识别和美化
+      if (errorCode === 'IMAGE_UNCLEAR') {
+        throw new Error(`IMAGE_UNCLEAR: ${errorMessage}`);
+      } else if (errorCode === 'NOT_FOOD') {
+        throw new Error(`NOT_FOOD: ${errorMessage}`);
+      } else if (errorCode === 'NO_FOOD_DETECTED') {
+        throw new Error(`NO_FOOD_DETECTED: ${errorMessage}`);
+      } else {
+        throw new Error(errorMessage);
+      }
     }
 
     const data: AnalyzeResponse = await response.json();

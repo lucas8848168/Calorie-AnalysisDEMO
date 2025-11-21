@@ -33,22 +33,37 @@ async function loadModel() {
   isLoading = true;
   loadPromise = (async () => {
     try {
+      console.log('🚀 开始加载 TensorFlow.js 和 MobileNet...');
+      
       // 动态导入以实现代码分割
       const [tf, mobilenet] = await Promise.all([
         import('@tensorflow/tfjs'),
         import('@tensorflow-models/mobilenet')
       ]);
 
+      console.log('📦 TensorFlow.js 导入成功');
+      
       // 设置后端（优先使用 WebGL）
       await tf.ready();
+      const backend = tf.getBackend();
+      console.log(`🎮 TensorFlow.js 后端: ${backend}`);
       
       // 加载模型
+      console.log('📥 开始下载 MobileNet 模型（约 16MB，首次需要 20-30 秒）...');
+      console.log('💡 提示：模型会被浏览器永久缓存，只需下载一次');
+      const startTime = Date.now();
       mobilenetModel = await mobilenet.load({
         version: 2,
         alpha: 1.0,
       });
+      const loadTime = Date.now() - startTime;
 
-      console.log('MobileNet model loaded successfully');
+      if (loadTime > 1000) {
+        console.log(`✅ MobileNet 模型加载成功！耗时: ${(loadTime/1000).toFixed(1)} 秒`);
+      } else {
+        console.log(`✅ MobileNet 模型加载成功！耗时: ${loadTime} 毫秒（已缓存）`);
+      }
+      console.log('💾 模型已缓存到浏览器，下次访问将秒开');
       return mobilenetModel;
     } catch (error) {
       console.error('Failed to load MobileNet model:', error);
@@ -72,8 +87,10 @@ export async function detectFood(imageDataUrl: string): Promise<{
   predictions: Array<{ className: string; probability: number }>;
 }> {
   try {
+    console.log('🔄 加载模型...');
     // 加载模型
     const model = await loadModel();
+    console.log('✅ 模型已就绪');
 
     // 创建图片元素
     const img = new Image();
@@ -82,9 +99,19 @@ export async function detectFood(imageDataUrl: string): Promise<{
       img.onload = resolve;
       img.onerror = reject;
     });
+    console.log(`📸 图片已加载: ${img.width}x${img.height}`);
 
     // 进行预测（获取前5个结果）
+    console.log('🤖 开始 AI 分类...');
+    const startTime = Date.now();
     const predictions = await model.classify(img, 5);
+    const classifyTime = Date.now() - startTime;
+    
+    if (classifyTime > 1000) {
+      console.log(`⚡ 分类完成，耗时: ${(classifyTime/1000).toFixed(1)} 秒`);
+    } else {
+      console.log(`⚡ 分类完成，耗时: ${classifyTime} 毫秒`);
+    }
 
     // 检查是否包含食物相关的分类
     let maxFoodConfidence = 0;
@@ -104,6 +131,15 @@ export async function detectFood(imageDataUrl: string): Promise<{
         maxFoodConfidence = Math.max(maxFoodConfidence, probability);
       }
     }
+
+    // 输出详细的检测结果
+    console.log('📊 检测结果:', {
+      isFood,
+      confidence: `${(maxFoodConfidence * 100).toFixed(1)}%`,
+      topPredictions: predictions.slice(0, 3).map((p: any) => 
+        `${p.className} (${(p.probability * 100).toFixed(1)}%)`
+      )
+    });
 
     return {
       isFood,

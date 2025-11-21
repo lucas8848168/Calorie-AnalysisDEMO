@@ -106,7 +106,52 @@ async function handleAnalyze(request: Request, config: any): Promise<Response> {
   } catch (error: any) {
     console.error('Analyze error:', error);
     
-    // 返回友好的错误信息，不暴露敏感细节
+    // 检查是否是特殊错误（图片问题）
+    const errorMessage = error.message || '';
+    
+    if (errorMessage.includes('IMAGE_UNCLEAR:')) {
+      return jsonResponse(
+        {
+          success: false,
+          error: {
+            code: 'IMAGE_UNCLEAR',
+            message: errorMessage.replace('IMAGE_UNCLEAR:', '').trim(),
+            timestamp: Date.now(),
+          },
+        },
+        400
+      );
+    }
+    
+    if (errorMessage.includes('NOT_FOOD:')) {
+      return jsonResponse(
+        {
+          success: false,
+          error: {
+            code: 'NOT_FOOD',
+            message: errorMessage.replace('NOT_FOOD:', '').trim(),
+            timestamp: Date.now(),
+          },
+        },
+        400
+      );
+    }
+    
+    if (errorMessage.includes('NO_FOOD_DETECTED:')) {
+      return jsonResponse(
+        {
+          success: false,
+          error: {
+            code: 'NO_FOOD_DETECTED',
+            message: errorMessage.replace('NO_FOOD_DETECTED:', '').trim(),
+            timestamp: Date.now(),
+          },
+        },
+        400
+      );
+    }
+    
+    // 其他错误返回通用错误信息
     return jsonResponse(
       {
         success: false,

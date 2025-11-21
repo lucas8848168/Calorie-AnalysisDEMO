@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>本地模型测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+        }
+        #preview {
+            max-width: 400px;
+            margin: 10px 0;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 本地模型功能测试</h1>
+    
+    <div class="test-section">
+        <h2>1. TensorFlow.js 加载测试</h2>
+        <button onclick="testTensorFlow()">测试 TensorFlow.js</button>
+        <div id="tf-status"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>2. MobileNet 模型加载测试</h2>
+        <button onclick="testMobileNet()">加载 MobileNet 模型</button>
+        <div id="mobilenet-status"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. 食物检测测试</h2>
+        <input type="file" id="imageInput" accept="image/*">
+        <br>
+        <img id="preview" style="display:none;">
+        <br>
+        <button onclick="testFoodDetection()">检测图片</button>
+        <div id="detection-status"></div>
+    </div>
+
+    <script type="module">
+        let tf, mobilenet, model;
+
+        window.testTensorFlow = async function() {
+            const statusDiv = document.getElementById('tf-status');
+            statusDiv.innerHTML = '<div class="status info">正在加载 TensorFlow.js...</div>';
+            
+            try {
+                tf = await import('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js');
+                await tf.ready();
+                
+                const backend = tf.getBackend();
+                const version = tf.version.tfjs;
+                
+                statusDiv.innerHTML = `
+                    <div class="status success">
+                        ✅ TensorFlow.js 加载成功！
+                        <br>版本: ${version}
+                        <br>后端: ${backend}
+                    </div>
+                `;
+            } catch (error) {
+                statusDiv.innerHTML = `
+                    <div class="status error">
+                        ❌ TensorFlow.js 加载失败
+                        <br>错误: ${error.message}
+                    </div>
+                `;
+                console.error(error);
+            }
+        };
+
+        window.testMobileNet = async function() {
+            const statusDiv = document.getElementById('mobilenet-status');
+            statusDiv.innerHTML = '<div class="status info">正在加载 MobileNet 模型...</div>';
+            
+            try {
+                if (!tf) {
+                    tf = await import('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js');
+                    await tf.ready();
+                }
+                
+                mobilenet = await import('https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.1/dist/mobilenet.min.js');
+                
+                const startTime = Date.now();
+                model = await mobilenet.load({
+                    version: 2,
+                    alpha: 1.0,
+                });
+                const loadTime = Date.now() - startTime;
+                
+                statusDiv.innerHTML = `
+                    <div class="status success">
+                        ✅ MobileNet 模型加载成功！
+                        <br>加载时间: ${loadTime}ms
+                        <br>模型版本: 2
+                    </div>
+                `;
+            } catch (error) {
+                statusDiv.innerHTML = `
+                    <div class="status error">
+                        ❌ MobileNet 模型加载失败
+                        <br>错误: ${error.message}
+                    </div>
+                `;
+                console.error(error);
+            }
+        };
+
+        window.testFoodDetection = async function() {
+            const statusDiv = document.getElementById('detection-status');
+            const fileInput = document.getElementById('imageInput');
+            const preview = document.getElementById('preview');
+            
+            if (!fileInput.files || !fileInput.files[0]) {
+                statusDiv.innerHTML = '<div class="status error">请先选择一张图片</div>';
+                return;
+            }
+            
+            statusDiv.innerHTML = '<div class="status info">正在检测...</div>';
+            
+            try {
+                // 确保模型已加载
+                if (!model) {
+                    await window.testMobileNet();
+                }
+                
+                // 读取图片
+                const file = fileInput.files[0];
+                const reader = new FileReader();
+                
+                reader.onload = async function(e) {
+                    preview.src = e.target.result;
+                    preview.style.display = 'block';
+                    
+                    // 创建图片元素
+                    const img = new Image();
+                    img.src = e.target.result;
+                    
+                    img.onload = async function() {
+                        try {
+                            const startTime = Date.now();
+                            const predictions = await model.classify(img, 5);
+                            const detectTime = Date.now() - startTime;
+                            
+                            // 食物关键词
+                            const foodKeywords = [
+                                'food', 'dish', 'meal', 'plate', 'bowl', 'cup',
+                                'pizza', 'burger', 'sandwich', 'salad', 'soup',
+                                'bread', 'cake', 'cookie', 'fruit', 'vegetable',
+                                'meat', 'chicken', 'fish', 'rice', 'noodle'
+                            ];
+                            
+                            let isFood = false;
+                            let maxFoodConfidence = 0;
+                            
+                            predictions.forEach(pred => {
+                                const className = pred.className.toLowerCase();
+                                const isFoodClass = foodKeywords.some(keyword => 
+                                    className.includes(keyword)
+                                );
+                                
+                                if (isFoodClass) {
+                                    isFood = true;
+                                    maxFoodConfidence = Math.max(maxFoodConfidence, pred.probability);
+                                }
+                            });
+                            
+                            const resultHtml = `
+                                <div class="status ${isFood ? 'success' : 'error'}">
+                                    ${isFood ? '✅ 检测到食物' : '❌ 未检测到食物'}
+                                    <br>检测时间: ${detectTime}ms
+                                    <br>食物置信度: ${(maxFoodConfidence * 100).toFixed(1)}%
+                                </div>
+                                <pre>${JSON.stringify(predictions, null, 2)}</pre>
+                            `;
+                            
+                            statusDiv.innerHTML = resultHtml;
+                        } catch (error) {
+                            statusDiv.innerHTML = `
+                                <div class="status error">
+                                    ❌ 检测失败
+                                    <br>错误: ${error.message}
+                                </div>
+                            `;
+                            console.error(error);
+                        }
+                    };
+                };
+                
+                reader.readAsDataURL(file);
+                
+            } catch (error) {
+                statusDiv.innerHTML = `
+                    <div class="status error">
+                        ❌ 检测失败
+                        <br>错误: ${error.message}
+                    </div>
+                `;
+                console.error(error);
+            }
+        };
+
+        // 自动运行基础测试
+        window.addEventListener('load', async () => {
+            console.log('开始自动测试...');
+            await testTensorFlow();
+            await testMobileNet();
+        });
+    </script>
+</body>
+</html>
