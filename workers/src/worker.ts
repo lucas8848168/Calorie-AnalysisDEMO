@@ -4,15 +4,17 @@ import { analyzeImage } from './doubaoClient';
 const MAX_REQUEST_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_ORIGINS = [
   'http://localhost:5173',
+  'https://localhost:5173',
   'https://lucas8848168.github.io',
-  'https://your-domain.pages.dev'
+  'https://food-calorie-analyzer-qan.pages.dev',
+  'https://calorie-analysis-auto.pages.dev'
 ];
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     // CORS预检请求
     if (request.method === 'OPTIONS') {
-      return handleCORS();
+      return handleCORS(request);
     }
 
     try {
@@ -213,13 +215,20 @@ function handleHealth(): Response {
 /**
  * 处理CORS
  */
-function handleCORS(): Response {
+function handleCORS(request?: Request): Response {
+  // 获取请求来源
+  const origin = request?.headers.get('Origin') || '*';
+  
+  // 检查是否在允许列表中
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : '*';
+  
   return new Response(null, {
     headers: {
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': allowedOrigin,
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
       'Access-Control-Max-Age': '86400',
+      'Access-Control-Allow-Credentials': 'true',
     },
   });
 }
@@ -262,12 +271,16 @@ function handleError(error: any): Response {
 /**
  * 创建JSON响应
  */
-function jsonResponse(data: any, status: number = 200): Response {
+function jsonResponse(data: any, status: number = 200, request?: Request): Response {
+  const origin = request?.headers.get('Origin') || '*';
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : '*';
+  
   return new Response(JSON.stringify(data), {
     status,
     headers: {
       'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': allowedOrigin,
+      'Access-Control-Allow-Credentials': 'true',
     },
   });
 }

@@ -1,6 +1,10 @@
 import { AnalyzeRequest, AnalyzeResponse, BoundingBox } from '../types';
 
+// 确保生产环境使用 HTTPS
 const API_ENDPOINT = import.meta.env.VITE_API_ENDPOINT || 'http://localhost:8787';
+const SECURE_API_ENDPOINT = window.location.protocol === 'https:' 
+  ? API_ENDPOINT.replace('http://', 'https://') 
+  : API_ENDPOINT;
 const REQUEST_TIMEOUT = 60000; // 60秒（豆包 API 通常需要 30-60 秒）
 const FALLBACK_TIMEOUT = 120000; // 降级策略超时120秒（复杂图片需要更长时间）
 
@@ -56,7 +60,7 @@ async function analyzeFoodWithTimeout(
       request.regions = regions;
     }
 
-    const response = await fetch(`${API_ENDPOINT}/api/analyze`, {
+    const response = await fetch(`${SECURE_API_ENDPOINT}/api/analyze`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -117,7 +121,7 @@ async function analyzeFoodWithTimeout(
  */
 export async function checkApiHealth(): Promise<boolean> {
   try {
-    const response = await fetch(`${API_ENDPOINT}/health`, {
+    const response = await fetch(`${SECURE_API_ENDPOINT}/health`, {
       method: 'GET',
       signal: AbortSignal.timeout(5000),
     });
