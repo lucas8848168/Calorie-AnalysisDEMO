@@ -4,7 +4,10 @@ import { AnalyzeResponse, FoodItem, AnalysisResult } from '../types';
  * 解析API响应
  */
 export function parseAnalysisResponse(response: AnalyzeResponse): AnalysisResult | null {
+  console.log('🔍 parseAnalysisResponse 输入:', response);
+  
   if (!response.success || !response.data) {
+    console.warn('⚠️ 响应无效:', { success: response.success, hasData: !!response.data });
     return null;
   }
 
@@ -12,8 +15,11 @@ export function parseAnalysisResponse(response: AnalyzeResponse): AnalysisResult
 
   // 验证数据完整性
   if (!Array.isArray(foods)) {
+    console.error('❌ foods 不是数组:', foods);
     throw new Error('Invalid response format: foods must be an array');
   }
+
+  console.log(`📋 解析 ${foods.length} 个食物项...`);
 
   // 解析食物列表
   const parsedFoods: FoodItem[] = foods.map((food) => {

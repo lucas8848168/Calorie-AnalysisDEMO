@@ -2,19 +2,32 @@ import { AnalysisResult, HistoryStorage } from '../types';
 import { autoCleanup, hasEnoughSpace } from '../utils/storageOptimizer';
 
 const STORAGE_KEY = 'food_analyzer_history';
-const MAX_RECORDS = 50;
+const MAX_RECORDS = 20; // 存储压缩后的图片，增加到 20 条
 const MAX_AGE_DAYS = 30;
 
 class HistoryStorageService implements HistoryStorage {
   /**
    * 保存分析记录
    * 包含自动清理和空间检查
+   * 注意：不存储图片以节省 LocalStorage 空间
    */
   saveRecord(record: AnalysisResult): void {
     try {
+      // 验证记录完整性
+      if (!record || !record.id || !record.timestamp) {
+        console.error('无效的记录：缺少必需字段', record);
+        throw new Error('INVALID_RECORD');
+      }
+
+      // 验证食物数据
+      if (!record.foods || !Array.isArray(record.foods) || record.foods.length === 0) {
+        console.error('无效的记录：没有食物数据', record);
+        throw new Error('INVALID_RECORD');
+      }
+
       const records = this.getRecords();
       
-      // 添加新记录到开头
+      // 添加新记录到开头（保留压缩后的图片）
       records.unshift(record);
       
       // 限制记录数量
@@ -25,22 +38,34 @@ class HistoryStorageService implements HistoryStorage {
       
       // 检查空间
       const dataSize = JSON.stringify(cleanedRecords).length;
+      console.log(`💾 存储大小: ${(dataSize / 1024).toFixed(1)}KB, 记录数: ${cleanedRecords.length}`);
+      
       if (!hasEnoughSpace(dataSize)) {
         // 尝试自动清理
+        console.warn('⚠️ 存储空间不足，尝试自动清理...');
         autoCleanup();
         
         // 再次检查
         if (!hasEnoughSpace(dataSize)) {
+          console.error('❌ 清理后仍然空间不足');
           throw new Error('STORAGE_FULL');
         }
       }
       
       // 保存到LocalStorage
       localStorage.setItem(STORAGE_KEY, JSON.stringify(cleanedRecords));
+      console.log('✅ 记录已保存到历史（含压缩图片）', { id: record.id, foods: record.foods.length });
     } catch (error) {
+      console.error('保存记录失败:', error);
+      
       if (this.isQuotaExceeded(error)) {
         throw new Error('STORAGE_FULL');
       }
+      
+      if (error instanceof Error && error.message === 'INVALID_RECORD') {
+        throw error;
+      }
+      
       throw new Error('STORAGE_ERROR');
     }
   }

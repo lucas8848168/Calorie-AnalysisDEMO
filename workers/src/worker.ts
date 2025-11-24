@@ -29,7 +29,7 @@ export default {
       const config = getConfig(env);
       
       if (url.pathname === '/api/analyze' && request.method === 'POST') {
-        return await handleAnalyze(request, config);
+        return await handleAnalyze(request, config, env);
       }
 
       return jsonResponse({ error: 'Not Found' }, 404);
@@ -43,7 +43,7 @@ export default {
 /**
  * 处理图片分析请求
  */
-async function handleAnalyze(request: Request, config: any): Promise<Response> {
+async function handleAnalyze(request: Request, config: any, env: any): Promise<Response> {
   try {
     // 验证请求大小
     const contentLength = request.headers.get('content-length');
@@ -80,18 +80,51 @@ async function handleAnalyze(request: Request, config: any): Promise<Response> {
       );
     }
 
-    // 调用方舟豆包API
-    const result = await analyzeImage(
-      image,
-      config.apiKey,
-      config.apiEndpoint
-    );
-
-    // 计算总卡路里
-    const totalCalories = result.foods.reduce(
-      (sum, food) => sum + food.calories,
-      0
-    );
+    // 检查是否启用 Mock 模式（用于 API 限制时测试）
+    const useMock = env.USE_MOCK === 'true' || false;
+    
+    let result;
+    let totalCalories;
+    
+    if (useMock) {
+      // Mock 模式：使用模拟数据
+      console.log('🎭 使用 Mock 模式（API 限制时的测试模式）');
+      const { getRandomMockResponse } = await import('./mockData');
+      const mockResponse = getRandomMockResponse();
+      result = mockResponse.data;
+      totalCalories = result.totalCalories;
+    } else {
+      // 正常模式：调用方舟豆包API
+      try {
+        result = await analyzeImage(
+          image,
+          config.apiKey,
+          config.apiEndpoint
+        );
+        
+        // 计算总卡路里
+        totalCalories = result.foods.reduce(
+          (sum, food) => sum + food.calories,
+          0
+        );
+      } catch (error: any) {
+        // 如果是 429 限流错误，提示用户
+        if (error.message.includes('429') || error.message.includes('SetLimitExceeded')) {
+          return jsonResponse(
+            {
+              success: false,
+              error: {
+                code: 'RATE_LIMIT_EXCEEDED',
+                message: '⚠️ API 调用次数已达上限。请稍后重试，或联系管理员调整限制。\n\n💡 提示：你可以在 .dev.vars 中设置 USE_MOCK=true 使用模拟数据测试前端功能。',
+                timestamp: Date.now(),
+              },
+            },
+            429
+          );
+        }
+        throw error;
+      }
+    }
 
     // 返回成功响应
     return jsonResponse({

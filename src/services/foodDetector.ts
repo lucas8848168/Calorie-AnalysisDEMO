@@ -7,16 +7,44 @@ let mobilenetModel: any = null;
 let isLoading = false;
 let loadPromise: Promise<any> | null = null;
 
-// 食物相关的关键词
+// 食物相关的关键词（扩展至 50+ 个）
 const FOOD_KEYWORDS = [
-  'food', 'dish', 'meal', 'plate', 'bowl', 'cup',
-  'pizza', 'burger', 'sandwich', 'salad', 'soup',
-  'bread', 'cake', 'cookie', 'fruit', 'vegetable',
-  'meat', 'chicken', 'fish', 'rice', 'noodle',
-  'breakfast', 'lunch', 'dinner', 'snack', 'dessert',
-  'drink', 'beverage', 'coffee', 'tea', 'juice',
-  'restaurant', 'dining', 'cuisine', 'cooking'
+  // 通用食物词
+  'food', 'dish', 'meal', 'plate', 'bowl', 'cup', 'tray', 'platter',
+  
+  // 主食类
+  'pizza', 'burger', 'sandwich', 'hotdog', 'taco', 'burrito', 'wrap',
+  'bread', 'baguette', 'toast', 'bagel', 'croissant', 'muffin',
+  'rice', 'noodle', 'pasta', 'spaghetti', 'ramen', 'dumpling',
+  
+  // 肉类
+  'meat', 'steak', 'beef', 'pork', 'chicken', 'turkey', 'duck',
+  'fish', 'salmon', 'tuna', 'shrimp', 'seafood', 'sushi',
+  
+  // 蔬菜水果
+  'salad', 'vegetable', 'fruit', 'apple', 'banana', 'orange',
+  'tomato', 'potato', 'carrot', 'broccoli', 'corn',
+  
+  // 汤类
+  'soup', 'stew', 'broth', 'chowder',
+  
+  // 甜点
+  'cake', 'cookie', 'pie', 'ice cream', 'dessert', 'chocolate',
+  'pudding', 'donut', 'waffle', 'pancake',
+  
+  // 饮料
+  'drink', 'beverage', 'coffee', 'tea', 'juice', 'smoothie', 'latte',
+  
+  // 餐次
+  'breakfast', 'lunch', 'dinner', 'snack', 'brunch',
+  
+  // 场景
+  'restaurant', 'dining', 'cuisine', 'cooking', 'kitchen', 'cafeteria'
 ];
+
+// 检测阈值
+const FOOD_CONFIDENCE_THRESHOLD = 0.25; // 食物置信度阈值（≥0.25 放行）
+const NON_FOOD_CONFIDENCE_THRESHOLD = 0.6; // 非食物置信度阈值（≥0.6 警告）
 
 /**
  * 懒加载 MobileNet 模型
@@ -77,18 +105,19 @@ async function loadModel() {
 }
 
 /**
- * 检测图片是否包含食物
+ * 检测图片是否包含食物（优化版：Top3 分类 + 智能阈值）
  * @param imageDataUrl - Base64 图片数据
- * @returns Promise<boolean> - 是否为食物
+ * @returns Promise - 检测结果
  */
 export async function detectFood(imageDataUrl: string): Promise<{
   isFood: boolean;
   confidence: number;
+  shouldWarn: boolean;
+  reason: string;
   predictions: Array<{ className: string; probability: number }>;
 }> {
   try {
-    console.log('🔄 加载模型...');
-    // 加载模型
+    console.log('🔄 加载 MobileNet 模型...');
     const model = await loadModel();
     console.log('✅ 模型已就绪');
 
@@ -101,21 +130,19 @@ export async function detectFood(imageDataUrl: string): Promise<{
     });
     console.log(`📸 图片已加载: ${img.width}x${img.height}`);
 
-    // 进行预测（获取前5个结果）
-    console.log('🤖 开始 AI 分类...');
+    // 进行预测（获取 Top3 结果）
+    console.log('🤖 开始 AI 分类（Top3）...');
     const startTime = Date.now();
-    const predictions = await model.classify(img, 5);
+    const predictions = await model.classify(img, 3);
     const classifyTime = Date.now() - startTime;
     
-    if (classifyTime > 1000) {
-      console.log(`⚡ 分类完成，耗时: ${(classifyTime/1000).toFixed(1)} 秒`);
-    } else {
-      console.log(`⚡ 分类完成，耗时: ${classifyTime} 毫秒`);
-    }
+    console.log(`⚡ 分类完成，耗时: ${classifyTime}ms`);
 
-    // 检查是否包含食物相关的分类
+    // 分析 Top3 预测结果
     let maxFoodConfidence = 0;
-    let isFood = false;
+    let maxNonFoodConfidence = 0;
+    let foodMatches: string[] = [];
+    let nonFoodMatches: string[] = [];
 
     for (const pred of predictions) {
       const className = pred.className.toLowerCase();
@@ -127,16 +154,43 @@ export async function detectFood(imageDataUrl: string): Promise<{
       );
 
       if (isFoodClass) {
-        isFood = true;
         maxFoodConfidence = Math.max(maxFoodConfidence, probability);
+        foodMatches.push(`${pred.className} (${(probability * 100).toFixed(1)}%)`);
+      } else {
+        maxNonFoodConfidence = Math.max(maxNonFoodConfidence, probability);
+        nonFoodMatches.push(`${pred.className} (${(probability * 100).toFixed(1)}%)`);
       }
     }
 
+    // 智能判断逻辑
+    let isFood = false;
+    let shouldWarn = false;
+    let reason = '';
+
+    if (maxFoodConfidence >= FOOD_CONFIDENCE_THRESHOLD) {
+      // 食物置信度 ≥ 0.25，放行
+      isFood = true;
+      reason = `检测到食物（置信度 ${(maxFoodConfidence * 100).toFixed(1)}%）`;
+    } else if (maxNonFoodConfidence >= NON_FOOD_CONFIDENCE_THRESHOLD) {
+      // 非食物置信度 ≥ 0.6，警告
+      isFood = false;
+      shouldWarn = true;
+      reason = `检测到非食物内容（置信度 ${(maxNonFoodConfidence * 100).toFixed(1)}%）`;
+    } else {
+      // 置信度不足，无法判断，允许继续（交给豆包 API 判断）
+      isFood = true;
+      shouldWarn = false;
+      reason = `置信度不足，将由云端 AI 进一步分析`;
+    }
+
     // 输出详细的检测结果
-    console.log('📊 检测结果:', {
+    console.log('📊 本地检测结果:', {
       isFood,
-      confidence: `${(maxFoodConfidence * 100).toFixed(1)}%`,
-      topPredictions: predictions.slice(0, 3).map((p: any) => 
+      shouldWarn,
+      reason,
+      foodConfidence: `${(maxFoodConfidence * 100).toFixed(1)}%`,
+      nonFoodConfidence: `${(maxNonFoodConfidence * 100).toFixed(1)}%`,
+      top3: predictions.map((p: any) => 
         `${p.className} (${(p.probability * 100).toFixed(1)}%)`
       )
     });
@@ -144,17 +198,21 @@ export async function detectFood(imageDataUrl: string): Promise<{
     return {
       isFood,
       confidence: maxFoodConfidence,
+      shouldWarn,
+      reason,
       predictions: predictions.map((p: any) => ({
         className: p.className,
         probability: p.probability
       }))
     };
   } catch (error) {
-    console.error('Food detection error:', error);
-    // 如果检测失败，默认认为是食物（避免误拦截）
+    console.error('❌ 本地检测失败:', error);
+    // 如果检测失败，允许继续（交给豆包 API 判断）
     return {
       isFood: true,
       confidence: 0,
+      shouldWarn: false,
+      reason: '本地检测失败，将由云端 AI 分析',
       predictions: []
     };
   }

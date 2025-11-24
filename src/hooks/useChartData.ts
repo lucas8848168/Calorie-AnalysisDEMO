@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ChartDataPoint, MacroNutrition, MealType } from '../types';
 import {
   getDayViewData,
@@ -31,7 +31,8 @@ export function useChartData(initialPeriod: TimePeriod = 'week') {
   const [error, setError] = useState<string | null>(null);
 
   // 加载图表数据
-  const loadData = useCallback(() => {
+  const loadData = useCallback(async () => {
+    console.log('🔄 useChartData: 开始加载数据, 时间段:', timePeriod);
     setIsLoading(true);
     setError(null);
 
@@ -40,31 +41,50 @@ export function useChartData(initialPeriod: TimePeriod = 'week') {
 
       switch (timePeriod) {
         case 'day':
-          data = getDayViewData(new Date());
+          console.log('📅 加载今日数据');
+          data = await getDayViewData(new Date());
           break;
         case 'week':
-          data = getWeekViewData();
+          console.log('📅 加载本周数据');
+          data = await getWeekViewData();
           break;
         case 'month':
-          data = getMonthViewData();
+          console.log('📅 加载本月数据');
+          data = await getMonthViewData();
           break;
         default:
-          data = getWeekViewData();
+          data = await getWeekViewData();
       }
 
+      console.log('✅ useChartData: 数据加载完成, 数据点数:', data.length);
       setChartData(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : '加载图表数据失败');
-      console.error('Failed to load chart data:', err);
+      console.error('❌ useChartData: 加载失败:', err);
     } finally {
       setIsLoading(false);
     }
   }, [timePeriod]);
 
-  // 计算数据摘要（使用useMemo优化）
-  const summary = useMemo<ChartDataSummary>(() => {
+  // 数据摘要状态
+  const [summary, setSummary] = useState<ChartDataSummary>({
+    totalDays: 0,
+    totalMeals: 0,
+    totalCalories: 0,
+    averageDailyCalories: 0,
+    averageNutrition: { protein: 0, fat: 0, carbs: 0, fiber: 0 },
+    mealDistribution: {
+      [MealType.BREAKFAST]: 0,
+      [MealType.LUNCH]: 0,
+      [MealType.DINNER]: 0,
+      [MealType.SNACK]: 0,
+    },
+  });
+
+  // 计算数据摘要
+  useEffect(() => {
     if (chartData.length === 0) {
-      return {
+      setSummary({
         totalDays: 0,
         totalMeals: 0,
         totalCalories: 0,
@@ -76,34 +96,42 @@ export function useChartData(initialPeriod: TimePeriod = 'week') {
           [MealType.DINNER]: 0,
           [MealType.SNACK]: 0,
         },
-      };
+      });
+      return;
     }
 
     const startDate = chartData[0].date;
     const endDate = chartData[chartData.length - 1].date;
-    return getDataSummary(startDate, endDate);
+    
+    getDataSummary(startDate, endDate).then(setSummary);
   }, [chartData]);
 
-  // 获取实际营养摄入（使用useMemo优化）
-  const actualNutrition = useMemo<MacroNutrition>(() => {
+  // 实际营养摄入状态
+  const [actualNutrition, setActualNutrition] = useState<MacroNutrition>({
+    protein: 0,
+    fat: 0,
+    carbs: 0,
+    fiber: 0,
+  });
+
+  // 所有餐次状态
+  const [allMeals, setAllMeals] = useState<any[]>([]);
+
+  // 计算实际营养摄入和餐次
+  useEffect(() => {
     if (chartData.length === 0) {
-      return { protein: 0, fat: 0, carbs: 0, fiber: 0 };
+      setActualNutrition({ protein: 0, fat: 0, carbs: 0, fiber: 0 });
+      setAllMeals([]);
+      return;
     }
 
     const startDate = chartData[0].date;
     const endDate = chartData[chartData.length - 1].date;
-    const meals = getMealsByDateRange(startDate, endDate);
-
-    return calculateAverageNutrition(meals, chartData.length);
-  }, [chartData]);
-
-  // 获取所有餐次（使用useMemo优化）
-  const allMeals = useMemo(() => {
-    if (chartData.length === 0) return [];
-
-    const startDate = chartData[0].date;
-    const endDate = chartData[chartData.length - 1].date;
-    return getMealsByDateRange(startDate, endDate);
+    
+    getMealsByDateRange(startDate, endDate).then((meals) => {
+      setAllMeals(meals);
+      setActualNutrition(calculateAverageNutrition(meals, chartData.length));
+    });
   }, [chartData]);
 
   // 切换时间维度

@@ -72,6 +72,8 @@ async function analyzeFoodWithTimeout(
       const errorCode = errorData.error?.code || '';
       const errorMessage = errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`;
       
+      console.error('🚫 API 错误:', { code: errorCode, message: errorMessage, status: response.status });
+      
       // 保留错误代码前缀，让 App.tsx 能够识别和美化
       if (errorCode === 'IMAGE_UNCLEAR') {
         throw new Error(`IMAGE_UNCLEAR: ${errorMessage}`);

@@ -683,24 +683,463 @@ DOUBAO_API_KEY = "从环境变量读取"
 3. **错误追踪**: 集成Sentry或类似服务
 4. **性能监控**: 使用Web Vitals追踪用户体验指标
 
+---
+
+## P2 盈利模式设计
+
+### 配额管理系统
+
+#### 架构概述
+
+```mermaid
+graph TB
+    subgraph "配额管理层"
+        QuotaService[配额服务]
+        QuotaStorage[配额存储]
+        QuotaUI[配额UI组件]
+    end
+    
+    subgraph "广告系统层"
+        AdService[广告服务]
+        AdProvider[广告提供商SDK]
+        AdUI[广告播放器]
+    end
+    
+    subgraph "用户识别层"
+        UserService[用户服务]
+        AdminCheck[管理员检查]
+    end
+    
+    QuotaService --> QuotaStorage
+    QuotaService --> UserService
+    UserService --> AdminCheck
+    QuotaUI --> QuotaService
+    AdUI --> AdService
+    AdService --> AdProvider
+    AdService --> QuotaService
+```
+
+#### 配额数据模型
+
+```typescript
+interface UserQuota {
+  userId: string;              // 用户唯一标识（设备指纹或用户ID）
+  baseQuota: number;           // 基础配额（默认5次）
+  trialQuota: number;          // 试玩配额（通过广告获得）
+  usedCount: number;           // 已使用次数
+  totalUsed: number;           // 历史总使用次数
+  lastResetDate: Date;         // 上次重置日期（可选）
+  createdAt: Date;             // 创建时间
+  updatedAt: Date;             // 更新时间
+  isAdmin: boolean;            // 是否为管理员
+}
+
+interface QuotaTransaction {
+  id: string;
+  userId: string;
+  type: 'use' | 'earn' | 'reset';
+  amount: number;
+  source: 'base' | 'ad' | 'admin';
+  timestamp: Date;
+  remainingQuota: number;
+}
+
+interface AdConfig {
+  provider: 'google-adsense' | 'custom';
+  adUnitId: string;
+  adType: 'video' | 'interstitial' | 'rewarded';
+  minDuration: number;         // 最小观看时长（秒）
+  rewardAmount: number;        // 奖励配额数量（默认3）
+  enabled: boolean;
+}
+```
+
+#### 配额服务接口
+
+```typescript
+// quotaService.ts
+export const quotaService = {
+  // 获取用户配额信息
+  getUserQuota: (userId: string) => UserQuota;
+  
+  // 检查是否有可用配额
+  hasAvailableQuota: (userId: string) => boolean;
+  
+  // 使用配额
+  useQuota: (userId: string) => Promise<boolean>;
+  
+  // 通过广告增加配额
+  earnQuotaFromAd: (userId: string, amount: number) => Promise<void>;
+  
+  // 检查是否为管理员
+  isAdmin: (userId: string) => boolean;
+  
+  // 获取配额历史记录
+  getQuotaHistory: (userId: string) => QuotaTransaction[];
+  
+  // 重置配额（管理员功能）
+  resetQuota: (userId: string) => void;
+};
+```
+
+#### 广告服务接口
+
+```typescript
+// adService.ts
+export const adService = {
+  // 初始化广告SDK
+  initialize: (config: AdConfig) => Promise<void>;
+  
+  // 加载广告
+  loadAd: () => Promise<void>;
+  
+  // 显示广告
+  showAd: () => Promise<AdResult>;
+  
+  // 检查广告是否可用
+  isAdAvailable: () => boolean;
+  
+  // 获取广告配置
+  getConfig: () => AdConfig;
+};
+
+interface AdResult {
+  success: boolean;
+  completed: boolean;
+  watchedDuration: number;
+  error?: string;
+}
+```
+
+### UI组件设计
+
+#### 1. QuotaIndicator 组件
+显示配额状态的指示器。
+
+**接口**:
+```typescript
+interface QuotaIndicatorProps {
+  quota: UserQuota;
+  onQuotaClick: () => void;
+}
+```
+
+**职责**:
+- 在顶部导航栏显示配额图标和数量
+- 配额不足时显示警告样式
+- 点击打开配额详情弹窗
+
+#### 2. QuotaModal 组件
+配额详情弹窗。
+
+**接口**:
+```typescript
+interface QuotaModalProps {
+  quota: UserQuota;
+  history: QuotaTransaction[];
+  onClose: () => void;
+  onWatchAd: () => void;
+}
+```
+
+**职责**:
+- 显示基础配额和试玩配额
+- 显示配额使用历史
+- 提供"观看广告"按钮
+- 显示管理员标识（如适用）
+
+#### 3. AdPlayer 组件
+广告播放器组件。
+
+**接口**:
+```typescript
+interface AdPlayerProps {
+  onAdComplete: (result: AdResult) => void;
+  onAdClose: () => void;
+}
+```
+
+**职责**:
+- 加载和播放广告
+- 显示广告进度
+- 处理广告完成/跳过事件
+- 显示加载状态和错误提示
+
+#### 4. QuotaGuard 组件
+配额守卫组件，包装需要配额的功能。
+
+**接口**:
+```typescript
+interface QuotaGuardProps {
+  children: React.ReactNode;
+  onQuotaExhausted: () => void;
+}
+```
+
+**职责**:
+- 检查配额是否可用
+- 配额不足时显示提示
+- 提供"观看广告"快捷入口
+
+### 配额管理流程
+
+#### 用户识别流程
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant App
+    participant QuotaService
+    participant Storage
+    
+    User->>App: 首次访问
+    App->>QuotaService: 获取/创建用户配额
+    QuotaService->>Storage: 检查本地存储
+    alt 新用户
+        Storage-->>QuotaService: 无数据
+        QuotaService->>Storage: 创建配额(5次)
+    else 老用户
+        Storage-->>QuotaService: 返回配额数据
+    end
+    QuotaService-->>App: 返回配额信息
+    App-->>User: 显示配额状态
+```
+
+#### 食物识别流程（含配额检查）
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant App
+    participant QuotaService
+    participant API
+    
+    User->>App: 上传图片
+    App->>QuotaService: 检查配额
+    alt 有配额
+        QuotaService-->>App: 配额可用
+        App->>QuotaService: 使用配额(-1)
+        App->>API: 调用识别API
+        API-->>App: 返回识别结果
+        App-->>User: 显示结果
+    else 无配额
+        QuotaService-->>App: 配额不足
+        App-->>User: 显示配额用尽提示
+        User->>App: 点击"观看广告"
+        App->>AdService: 播放广告
+    end
+```
+
+#### 广告观看流程
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant App
+    participant AdService
+    participant AdProvider
+    participant QuotaService
+    
+    User->>App: 点击"观看广告"
+    App->>AdService: 加载广告
+    AdService->>AdProvider: 请求广告
+    AdProvider-->>AdService: 返回广告内容
+    AdService-->>App: 广告就绪
+    App->>AdService: 播放广告
+    AdService-->>User: 显示广告
+    User->>AdService: 观看广告
+    alt 完整观看
+        AdService-->>App: 广告完成
+        App->>QuotaService: 增加配额(+3)
+        QuotaService-->>App: 配额已更新
+        App-->>User: 显示成功提示
+    else 中途关闭
+        AdService-->>App: 广告未完成
+        App-->>User: 提示需完整观看
+    end
+```
+
+### 配额存储策略
+
+#### LocalStorage 结构扩展
+
+```typescript
+interface LocalStorageSchema {
+  // 现有数据
+  history: AnalysisResult[];
+  meals: MealRecord[];
+  goals: UserGoal[];
+  favorites: FavoriteFood[];
+  templates: MealTemplate[];
+  reminders: ReminderSettings;
+  userProfile: UserProfile;
+  
+  // P2 新增：配额管理
+  userQuota: UserQuota;
+  quotaHistory: QuotaTransaction[];
+  adConfig: AdConfig;
+}
+```
+
+#### 配额持久化
+
+1. **实时保存**: 每次配额变化立即保存到LocalStorage
+2. **事务记录**: 记录所有配额变化的历史
+3. **数据校验**: 启动时验证配额数据完整性
+4. **异常恢复**: 数据异常时重置为默认配额
+
+### 管理员识别机制
+
+#### 方案1: 设备指纹识别
+
+```typescript
+// 生成设备指纹
+function generateDeviceFingerprint(): string {
+  const components = [
+    navigator.userAgent,
+    navigator.language,
+    screen.width + 'x' + screen.height,
+    new Date().getTimezoneOffset(),
+    navigator.hardwareConcurrency,
+  ];
+  return hashString(components.join('|'));
+}
+
+// 检查是否为管理员
+function isAdminDevice(fingerprint: string): boolean {
+  const adminFingerprints = [
+    'admin_fingerprint_1',
+    'admin_fingerprint_2',
+  ];
+  return adminFingerprints.includes(fingerprint);
+}
+```
+
+#### 方案2: 密码验证
+
+```typescript
+// 管理员登录
+function adminLogin(password: string): boolean {
+  const adminPassword = import.meta.env.VITE_ADMIN_PASSWORD;
+  if (password === adminPassword) {
+    localStorage.setItem('isAdmin', 'true');
+    return true;
+  }
+  return false;
+}
+```
+
+### 广告集成方案
+
+#### Google AdSense 集成
+
+```typescript
+// 初始化 Google AdSense
+function initializeGoogleAds() {
+  const script = document.createElement('script');
+  script.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js';
+  script.async = true;
+  script.setAttribute('data-ad-client', 'ca-pub-XXXXXXXXXXXXXXXX');
+  document.head.appendChild(script);
+}
+
+// 显示激励视频广告
+function showRewardedAd(): Promise<AdResult> {
+  return new Promise((resolve) => {
+    // Google AdSense 激励广告逻辑
+    const ad = new google.ads.RewardedAd();
+    ad.load();
+    ad.show();
+    
+    ad.onReward = () => {
+      resolve({ success: true, completed: true, watchedDuration: 30 });
+    };
+    
+    ad.onClose = () => {
+      resolve({ success: false, completed: false, watchedDuration: 0 });
+    };
+  });
+}
+```
+
+### 配额正确性属性
+
+#### Property 46: 配额扣减一致性
+*对于任何*用户，成功完成一次食物识别后，配额应该减少1次
+**Validates: Requirements 15.2**
+
+#### Property 47: 配额增加一致性
+*对于任何*用户，完整观看广告后，配额应该增加3次
+**Validates: Requirements 15.6**
+
+#### Property 48: 管理员无限配额
+*对于任何*管理员用户，配额检查应该始终返回true
+**Validates: Requirements 15.8**
+
+#### Property 49: 配额非负性
+*对于任何*用户，配额数量应该始终大于或等于0
+**Validates: Requirements 15.1, 15.2**
+
+#### Property 50: 配额持久化一致性
+*对于任何*配额变化，保存后重新加载应该得到相同的配额数据
+**Validates: Requirements 15.11**
+
+### 错误处理
+
+#### 配额系统错误
+
+1. **配额数据损坏**
+   - 检测到异常时重置为默认配额
+   - 记录错误日志
+   - 通知用户配额已重置
+
+2. **广告加载失败**
+   - 显示友好错误提示
+   - 提供重试选项
+   - 降级到无广告模式（可选）
+
+3. **配额同步冲突**
+   - 多标签页同步配额状态
+   - 使用localStorage事件监听
+   - 避免配额重复扣减
+
+### 性能优化
+
+1. **广告预加载**: 在用户配额即将用尽时预加载广告
+2. **配额缓存**: 内存缓存配额状态，减少存储读取
+3. **异步处理**: 配额记录异步保存，不阻塞主流程
+4. **懒加载广告SDK**: 仅在需要时加载广告SDK
+
+### 安全考虑
+
+1. **配额防篡改**: 使用签名验证配额数据完整性
+2. **管理员密码**: 使用环境变量存储，不硬编码
+3. **广告收益追踪**: 记录广告观看日志用于审计
+4. **速率限制**: 限制广告观看频率，防止滥用
+
 ## 技术债务和未来改进
 
 ### 短期改进
 1. 添加更多图片格式支持（HEIC、AVIF）
 2. 实现离线缓存（Service Worker）
 3. 添加多语言支持
+4. 优化广告加载性能
 
 ### 中期改进
 1. 支持批量上传和分析
 2. 添加食物数据库本地缓存
 3. 实现用户账户系统（可选）
 4. 导出历史记录为CSV/PDF
+5. 集成多个广告提供商
+6. 实现配额购买功能（付费解锁）
 
 ### 长期改进
 1. 训练自定义食物识别模型
 2. 添加营养建议和饮食计划功能
 3. 集成健康追踪API（如Apple Health）
 4. 开发移动应用
+5. 实现云端配额同步
+6. 添加会员订阅系统
 
 
 ---

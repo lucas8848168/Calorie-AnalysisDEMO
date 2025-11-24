@@ -1,0 +1,200 @@
+.processing-steps {
+  background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8c 100%);
+  border-radius: 20px;
+  padding: 2rem;
+  color: white;
+  max-width: 500px;
+  margin: 2rem auto;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+
+.processing-header {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.processing-header h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem 0;
+}
+
+.processing-subtitle {
+  font-size: 0.95rem;
+  opacity: 0.8;
+  margin: 0;
+}
+
+.progress-bar-container {
+  margin-bottom: 2rem;
+  position: relative;
+}
+
+.progress-bar-track {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+  border-radius: 10px;
+  transition: width 0.3s ease;
+  box-shadow: 0 0 10px rgba(102, 126, 234, 0.5);
+}
+
+.progress-percentage {
+  position: absolute;
+  right: 0;
+  top: -30px;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #00d4ff;
+}
+
+.steps-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.step-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.step-item.pending {
+  opacity: 0.5;
+}
+
+.step-item.active {
+  background: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 0 20px rgba(102, 126, 234, 0.3);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.step-item.completed {
+  background: rgba(76, 175, 80, 0.2);
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(102, 126, 234, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(102, 126, 234, 0.5);
+  }
+}
+
+.step-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.step-label {
+  flex: 1;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.step-loading {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.step-loading .dot {
+  width: 6px;
+  height: 6px;
+  background: #00d4ff;
+  border-radius: 50%;
+  animation: bounce 1.4s ease-in-out infinite;
+}
+
+.step-loading .dot:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.step-loading .dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.step-loading .dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes bounce {
+  0%, 80%, 100% {
+    transform: scale(0);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.step-check {
+  color: #4caf50;
+  font-size: 1.2rem;
+  font-weight: bold;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .processing-steps {
+    padding: 1.5rem;
+    margin: 1rem;
+  }
+
+  .processing-header h2 {
+    font-size: 1.3rem;
+  }
+
+  .step-item {
+    padding: 0.875rem 1rem;
+  }
+
+  .step-icon {
+    font-size: 1.3rem;
+  }
+
+  .step-label {
+    font-size: 0.95rem;
+  }
+}
+
+/* 骨架屏预览 */
+.skeleton-preview {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  animation: fadeIn 0.5s ease-in;
+}
+
+.skeleton-preview-hint {
+  text-align: center;
+  font-size: 0.9rem;
+  opacity: 0.8;
+  margin-bottom: 1rem;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

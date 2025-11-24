@@ -1,6 +1,6 @@
 import { MealRecord, MealType, FoodItem, NutritionInfo, AnalysisResult } from '../types';
 import { autoCleanup, hasEnoughSpace } from '../utils/storageOptimizer';
-import { historyStorage } from './historyStorage';
+import { historyStorageDB } from './historyStorageDB';
 
 const STORAGE_KEY = 'meals';
 
@@ -53,10 +53,10 @@ function convertAnalysisResultToMealRecord(result: AnalysisResult): MealRecord {
 }
 
 /**
- * 从 LocalStorage 获取所有餐次记录
+ * 从 IndexedDB 获取所有餐次记录
  * 同时从历史记录中读取并转换数据
  */
-function getMealsFromStorage(): MealRecord[] {
+async function getMealsFromStorage(): Promise<MealRecord[]> {
   try {
     // 1. 读取新格式的 meals 数据
     const data = localStorage.getItem(STORAGE_KEY);
@@ -72,15 +72,20 @@ function getMealsFromStorage(): MealRecord[] {
       }));
     }
     
-    // 2. 读取历史记录并转换为 MealRecord
-    const historyRecords = historyStorage.getRecords();
+    // 2. 读取历史记录并转换为 MealRecord（从 IndexedDB）
+    const historyRecords = await historyStorageDB.getRecords();
+    console.log('📊 从 IndexedDB 读取历史记录:', historyRecords.length, '条');
     const convertedMeals = historyRecords.map(convertAnalysisResultToMealRecord);
+    console.log('📊 转换为餐次记录:', convertedMeals.length, '条');
     
     // 3. 合并两个数据源，去重（优先使用 meals 中的数据）
     const mealIds = new Set(meals.map(m => m.id));
     const uniqueConvertedMeals = convertedMeals.filter(m => !mealIds.has(m.id));
     
-    return [...meals, ...uniqueConvertedMeals];
+    const allMeals = [...meals, ...uniqueConvertedMeals];
+    console.log('📊 总餐次记录:', allMeals.length, '条');
+    
+    return allMeals;
   } catch (error) {
     console.error('Failed to load meals from storage:', error);
     return [];
@@ -126,8 +131,8 @@ function generateId(): string {
 /**
  * 保存新的餐次记录
  */
-export function saveMeal(meal: Omit<MealRecord, 'id' | 'createdAt' | 'updatedAt'>): MealRecord {
-  const meals = getMealsFromStorage();
+export async function saveMeal(meal: Omit<MealRecord, 'id' | 'createdAt' | 'updatedAt'>): Promise<MealRecord> {
+  const meals = await getMealsFromStorage();
 
   const newMeal: MealRecord = {
     ...meal,
@@ -146,8 +151,8 @@ export function saveMeal(meal: Omit<MealRecord, 'id' | 'createdAt' | 'updatedAt'
 /**
  * 获取指定日期的所有餐次记录
  */
-export function getMealsByDate(date: Date): MealRecord[] {
-  const meals = getMealsFromStorage();
+export async function getMealsByDate(date: Date): Promise<MealRecord[]> {
+  const meals = await getMealsFromStorage();
   const targetDate = new Date(date);
   targetDate.setHours(0, 0, 0, 0);
 
@@ -161,8 +166,8 @@ export function getMealsByDate(date: Date): MealRecord[] {
 /**
  * 获取日期范围内的所有餐次记录
  */
-export function getMealsByDateRange(startDate: Date, endDate: Date): MealRecord[] {
-  const meals = getMealsFromStorage();
+export async function getMealsByDateRange(startDate: Date, endDate: Date): Promise<MealRecord[]> {
+  const meals = await getMealsFromStorage();
   const start = new Date(startDate);
   start.setHours(0, 0, 0, 0);
   const end = new Date(endDate);
@@ -177,19 +182,19 @@ export function getMealsByDateRange(startDate: Date, endDate: Date): MealRecord[
 /**
  * 按餐次类型过滤
  */
-export function getMealsByType(mealType: MealType, date?: Date): MealRecord[] {
-  const meals = date ? getMealsByDate(date) : getMealsFromStorage();
+export async function getMealsByType(mealType: MealType, date?: Date): Promise<MealRecord[]> {
+  const meals = date ? await getMealsByDate(date) : await getMealsFromStorage();
   return meals.filter((meal) => meal.mealType === mealType);
 }
 
 /**
  * 更新餐次记录
  */
-export function updateMeal(
+export async function updateMeal(
   id: string,
   updates: Partial<Omit<MealRecord, 'id' | 'createdAt'>>
-): MealRecord | null {
-  const meals = getMealsFromStorage();
+): Promise<MealRecord | null> {
+  const meals = await getMealsFromStorage();
   const index = meals.findIndex((meal) => meal.id === id);
 
   if (index === -1) {
@@ -217,8 +222,8 @@ export function updateMeal(
 /**
  * 删除餐次记录
  */
-export function deleteMeal(id: string): boolean {
-  const meals = getMealsFromStorage();
+export async function deleteMeal(id: string): Promise<boolean> {
+  const meals = await getMealsFromStorage();
   const filteredMeals = meals.filter((meal) => meal.id !== id);
 
   if (filteredMeals.length === meals.length) {
@@ -233,15 +238,15 @@ export function deleteMeal(id: string): boolean {
 /**
  * 获取单个餐次记录
  */
-export function getMealById(id: string): MealRecord | null {
-  const meals = getMealsFromStorage();
+export async function getMealById(id: string): Promise<MealRecord | null> {
+  const meals = await getMealsFromStorage();
   return meals.find((meal) => meal.id === id) || null;
 }
 
 /**
  * 获取所有餐次记录
  */
-export function getAllMeals(): MealRecord[] {
+export async function getAllMeals(): Promise<MealRecord[]> {
   return getMealsFromStorage();
 }
 
@@ -255,13 +260,13 @@ export function clearAllMeals(): void {
 /**
  * 获取餐次统计信息
  */
-export function getMealStats(date: Date): {
+export async function getMealStats(date: Date): Promise<{
   totalCalories: number;
   totalNutrition: NutritionInfo;
   mealCount: number;
   mealsByType: Record<MealType, number>;
-} {
-  const meals = getMealsByDate(date);
+}> {
+  const meals = await getMealsByDate(date);
 
   const totalNutrition = meals.reduce(
     (total, meal) => ({

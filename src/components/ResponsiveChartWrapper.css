@@ -1,0 +1,71 @@
+.responsive-chart-wrapper {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 24px;
+}
+
+.chart-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+  margin: 0 0 16px 0;
+}
+
+.chart-content {
+  position: relative;
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 移动端优化 */
+@media (max-width: 768px) {
+  .responsive-chart-wrapper {
+    padding: 16px;
+    margin-bottom: 16px;
+    border-radius: 8px;
+  }
+
+  .chart-title {
+    font-size: 16px;
+    margin-bottom: 12px;
+  }
+
+  .chart-content {
+    /* 允许水平滚动查看完整图表 */
+    overflow-x: scroll;
+    scroll-snap-type: x proximity;
+  }
+
+  /* 隐藏滚动条但保持功能 */
+  .chart-content::-webkit-scrollbar {
+    height: 4px;
+  }
+
+  .chart-content::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 2px;
+  }
+
+  .chart-content::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 2px;
+  }
+
+  .chart-content::-webkit-scrollbar-thumb:hover {
+    background: #555;
+  }
+}
+
+/* 超小屏幕 */
+@media (max-width: 375px) {
+  .responsive-chart-wrapper {
+    padding: 12px;
+  }
+
+  .chart-title {
+    font-size: 14px;
+  }
+}

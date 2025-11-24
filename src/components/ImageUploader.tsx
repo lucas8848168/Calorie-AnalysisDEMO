@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { ImageUploaderProps } from '../types';
-import { processImage } from '../utils/imageProcessor';
-import { detectFood } from '../services/foodDetector';
+import { useImageProcessor } from '../hooks/useImageProcessor';
+import ProcessingSteps from './ProcessingSteps';
 import './ImageUploader.css';
 
 const ImageUploader: React.FC<ImageUploaderProps> = ({
@@ -9,8 +9,8 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
   onError,
 }) => {
   const [preview, setPreview] = useState<string | null>(null);
-  const [processing, setProcessing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { state, processImageFile } = useImageProcessor();
 
   const handleFileSelect = async (
     event: React.ChangeEvent<HTMLInputElement>
@@ -18,68 +18,37 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
     const file = event.target.files?.[0];
     if (!file) return;
 
-    setProcessing(true);
-
     try {
-      // 处理图片（验证、压缩）
-      const processed = await processImage(file);
+      console.log('🎯 ImageUploader: 开始处理文件', file.name);
       
-      // 显示预览
-      setPreview(processed.dataUrl);
+      // 快速显示预览（不等待处理完成）
+      const previewUrl = URL.createObjectURL(file);
+      setPreview(previewUrl);
       
-      // 本地食物检测（异步，不阻塞预览）
-      console.log('🔍 开始本地食物检测...');
-      detectFood(processed.dataUrl)
-        .then(result => {
-          console.log('✅ 本地检测完成:', {
-            isFood: result.isFood,
-            confidence: `${(result.confidence * 100).toFixed(1)}%`,
-            topPrediction: result.predictions[0]?.className
-          });
-          
-          if (!result.isFood && result.confidence > 0) {
-            // 检测到非食物，但不强制阻止（给用户提示）
-            console.warn('⚠️ 本地模型判断：可能不是食物');
-            if (result.confidence > 0.6) {
-              const topClass = result.predictions[0]?.className || '未知物体';
-              onError(new Error(
-                `⚠️ 本地检测：这可能不是食物图片（识别为：${topClass}）。\n` +
-                '您仍可继续分析，但建议上传清晰的食物图片以获得更准确的结果。'
-              ));
-            }
-          } else if (result.isFood) {
-            const topFood = result.predictions[0]?.className || '';
-            console.log(`✅ 本地模型判断：检测到食物（${topFood}，置信度 ${(result.confidence * 100).toFixed(1)}%）`);
-          } else {
-            console.log('ℹ️ 本地模型：无法确定，将由后端 AI 进行详细分析');
-          }
-        })
-        .catch(err => {
-          console.error('❌ 本地检测失败:', err);
-          console.log('ℹ️ 本地检测失败不影响主流程，将直接使用后端 AI 分析');
-          // 检测失败不影响主流程
-        });
+      // 异步处理图片（压缩 → 检测 → 缓存 → API）
+      const result = await processImageFile(file);
       
-      // 通知父组件
-      onImageProcessed(processed);
-    } catch (error: any) {
-      // 处理错误
-      let errorMessage = '图片处理失败';
+      console.log('✅ ImageUploader: 处理完成，结果:', result ? '成功' : 'null');
       
-      if (error.message === 'INVALID_FILE_FORMAT') {
-        errorMessage = '不支持的文件格式，请上传 JPEG、PNG 或 WebP 格式的图片';
-      } else if (error.message === 'FILE_TOO_LARGE') {
-        errorMessage = '文件过大，请上传小于 10MB 的图片';
-      } else if (error.message === 'IMAGE_DECODE_ERROR') {
-        errorMessage = '图片已损坏或无法读取，请重新选择';
-      } else if (error.message === 'COMPRESSION_FAILED') {
-        errorMessage = '图片压缩失败，请尝试其他图片';
+      // 清理预览 URL
+      URL.revokeObjectURL(previewUrl);
+      
+      if (result) {
+        // 使用处理后的图片作为预览
+        setPreview(result.imageUrl);
+        // 通知父组件（传递完整的分析结果）
+        console.log('📊 ImageUploader: 调用 onImageProcessed');
+        onImageProcessed(result as any);
       }
-      
-      onError(new Error(errorMessage));
+      // 如果 result 为 null，说明在 Hook 中已经抛出错误，会被 catch 捕获
+    } catch (error: any) {
+      // 捕获所有错误（包括 Hook 中抛出的错误）
+      console.error('❌ ImageUploader 捕获错误:', error);
+      console.error('错误消息:', error.message);
+      console.error('错误堆栈:', error.stack);
+      console.log('📞 ImageUploader: 调用 onError');
+      onError(new Error(error.message || '图片处理失败'));
       setPreview(null);
-    } finally {
-      setProcessing(false);
     }
   };
 
@@ -116,46 +85,58 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
         accept="image/jpeg,image/png,image/webp"
         onChange={handleFileSelect}
         style={{ display: 'none' }}
+        disabled={state.isProcessing}
       />
       
-      <div
-        className="upload-area"
-        onClick={handleClick}
-        onDrop={handleDrop}
-        onDragOver={handleDragOver}
-      >
-        {processing ? (
-          <div className="processing">
-            <div className="spinner"></div>
-            <p>正在处理图片...</p>
+      {state.isProcessing ? (
+        <ProcessingSteps currentStage={state.stage} progress={state.progress} />
+      ) : (
+        <div
+          className="upload-area"
+          onClick={handleClick}
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+        >
+          {preview ? (
+            <div className="preview">
+              <img src={preview} alt="预览" />
+              <p className="hint">点击或拖拽上传新图片</p>
+            </div>
+          ) : (
+            <div className="placeholder">
+              <svg
+                width="80"
+                height="80"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <path d="M14.5 4h-5L8 6H5c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-3l-1.5-2z" />
+                <circle cx="12" cy="13" r="3" />
+              </svg>
+              <p>拍照或上传食物图片进行分析</p>
+              <p className="formats">支持 JPEG、PNG、WebP 格式，最大 10MB</p>
+              <p className="formats" style={{ marginTop: '0.5rem', color: '#ff9800', fontSize: '0.85rem' }}>
+                💡 本地 AI 预检测 + 智能缓存，更快更省流量
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+      
+      {state.warning && (
+        <div className="warning-message">
+          <div>
+            <span className="warning-icon">⚠️</span>
+            <strong>本地模型检测警告</strong>
           </div>
-        ) : preview ? (
-          <div className="preview">
-            <img src={preview} alt="预览" />
-            <p className="hint">点击或拖拽上传新图片</p>
+          <div style={{ whiteSpace: 'pre-line' }}>
+            {state.warning}
           </div>
-        ) : (
-          <div className="placeholder">
-            <svg
-              width="64"
-              height="64"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-              <circle cx="8.5" cy="8.5" r="1.5" />
-              <polyline points="21 15 16 10 5 21" />
-            </svg>
-            <p>点击或拖拽上传食物图片</p>
-            <p className="formats">支持 JPEG、PNG、WebP 格式，最大 10MB</p>
-            <p className="formats" style={{ marginTop: '0.5rem', color: '#ff9800', fontSize: '0.85rem' }}>
-              ⚠️ 建议拍摄单次用餐的食物，避免拍摄整个餐桌或食材展示图
-            </p>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -4,11 +4,13 @@ import { getMealsByDateRange } from './mealService';
 /**
  * 获取指定时间范围的图表数据点
  */
-export function getChartDataByDateRange(
+export async function getChartDataByDateRange(
   startDate: Date,
   endDate: Date
-): ChartDataPoint[] {
-  const meals = getMealsByDateRange(startDate, endDate);
+): Promise<ChartDataPoint[]> {
+  console.log('📈 获取图表数据:', startDate.toLocaleDateString(), '到', endDate.toLocaleDateString());
+  const meals = await getMealsByDateRange(startDate, endDate);
+  console.log('📈 该时间段餐次数:', meals.length);
   
   // 按日期分组
   const mealsByDate = new Map<string, MealRecord[]>();
@@ -20,6 +22,8 @@ export function getChartDataByDateRange(
     }
     mealsByDate.get(dateKey)!.push(meal);
   });
+  
+  console.log('📈 按日期分组:', Array.from(mealsByDate.entries()).map(([date, meals]) => `${date}: ${meals.length}条`));
   
   // 生成数据点
   const dataPoints: ChartDataPoint[] = [];
@@ -42,13 +46,16 @@ export function getChartDataByDateRange(
     currentDate.setDate(currentDate.getDate() + 1);
   }
   
+  console.log('📈 生成数据点:', dataPoints.length, '个');
+  console.log('📈 数据点详情:', dataPoints.map(p => `${p.date.toLocaleDateString()}: ${p.calories}kcal`));
+  
   return dataPoints;
 }
 
 /**
  * 获取日视图数据（当天）
  */
-export function getDayViewData(date: Date): ChartDataPoint[] {
+export async function getDayViewData(date: Date): Promise<ChartDataPoint[]> {
   const startDate = new Date(date);
   startDate.setHours(0, 0, 0, 0);
   
@@ -61,7 +68,7 @@ export function getDayViewData(date: Date): ChartDataPoint[] {
 /**
  * 获取周视图数据（最近7天）
  */
-export function getWeekViewData(endDate: Date = new Date()): ChartDataPoint[] {
+export async function getWeekViewData(endDate: Date = new Date()): Promise<ChartDataPoint[]> {
   const end = new Date(endDate);
   end.setHours(23, 59, 59, 999);
   
@@ -75,7 +82,7 @@ export function getWeekViewData(endDate: Date = new Date()): ChartDataPoint[] {
 /**
  * 获取月视图数据（最近30天）
  */
-export function getMonthViewData(endDate: Date = new Date()): ChartDataPoint[] {
+export async function getMonthViewData(endDate: Date = new Date()): Promise<ChartDataPoint[]> {
   const end = new Date(endDate);
   end.setHours(23, 59, 59, 999);
   
@@ -182,19 +189,19 @@ export function calculateMealDistributionPercentage(meals: MealRecord[]): {
 /**
  * 获取数据摘要
  */
-export function getDataSummary(
+export async function getDataSummary(
   startDate: Date,
   endDate: Date
-): {
+): Promise<{
   totalDays: number;
   totalMeals: number;
   totalCalories: number;
   averageDailyCalories: number;
   averageNutrition: MacroNutrition;
   mealDistribution: { [key in MealType]: number };
-} {
-  const meals = getMealsByDateRange(startDate, endDate);
-  const dataPoints = getChartDataByDateRange(startDate, endDate);
+}> {
+  const meals = await getMealsByDateRange(startDate, endDate);
+  const dataPoints = await getChartDataByDateRange(startDate, endDate);
   
   const totalCalories = meals.reduce((sum, meal) => {
     return sum + meal.foods.reduce((mealSum, food) => mealSum + food.calories, 0);

@@ -9,9 +9,22 @@
 .app-header {
   background: var(--gradient-primary);
   color: white;
-  text-align: center;
   padding: var(--spacing-2xl) var(--spacing-lg);
   box-shadow: var(--shadow-md);
+}
+
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 1200px;
+  margin: 0 auto;
+  gap: var(--spacing-lg);
+}
+
+.header-title {
+  flex: 1;
+  text-align: left;
 }
 
 .app-header h1 {
@@ -25,6 +38,30 @@
   font-size: var(--font-base);
   opacity: 0.95;
   font-weight: var(--font-weight-normal);
+}
+
+.header-actions {
+  flex-shrink: 0;
+}
+
+.login-btn {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  padding: 0.625rem 1.5rem;
+  border-radius: 24px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  backdrop-filter: blur(10px);
+}
+
+.login-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .app-nav {
@@ -193,6 +230,23 @@
 }
 
 @media (max-width: 768px) {
+  .header-content {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-md);
+  }
+
+  .header-title {
+    text-align: center;
+    width: 100%;
+  }
+
+  .header-actions {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+  }
+
   .app-header h1 {
     font-size: 28px;
   }
@@ -221,5 +275,231 @@
   .nav-item {
     padding: var(--spacing-xs) var(--spacing-sm);
     gap: 2px;
+  }
+}
+
+/* 错误页面样式 */
+.error-page {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 60vh;
+  padding: var(--spacing-2xl);
+}
+
+.error-content {
+  max-width: 600px;
+  width: 100%;
+  text-align: center;
+  background: white;
+  padding: var(--spacing-3xl);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+.error-icon-large {
+  font-size: 80px;
+  margin-bottom: var(--spacing-lg);
+  animation: shake 0.5s ease-in-out;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-10px); }
+  75% { transform: translateX(10px); }
+}
+
+.error-content h2 {
+  font-size: var(--font-2xl);
+  color: var(--color-text-primary);
+  margin-bottom: var(--spacing-lg);
+  font-weight: var(--font-weight-bold);
+}
+
+.error-message-detail {
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: var(--radius-md);
+  padding: var(--spacing-lg);
+  margin-bottom: var(--spacing-xl);
+  color: #856404;
+  font-size: var(--font-base);
+  line-height: 1.6;
+  text-align: left;
+  white-space: pre-line;
+}
+
+.retry-button {
+  background: var(--gradient-primary);
+  color: white;
+  border: none;
+  padding: var(--spacing-md) var(--spacing-2xl);
+  font-size: var(--font-lg);
+  font-weight: var(--font-weight-medium);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: var(--shadow-md);
+}
+
+.retry-button:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.retry-button:active {
+  transform: translateY(0);
+}
+
+@media (max-width: 768px) {
+  .error-content {
+    padding: var(--spacing-xl);
+  }
+  
+  .error-icon-large {
+    font-size: 60px;
+  }
+  
+  .error-content h2 {
+    font-size: var(--font-xl);
+  }
+}
+
+/* ========== 移动端触摸优化 ========== */
+
+/* 改进触摸目标大小 */
+@media (max-width: 768px) {
+  button,
+  a,
+  .clickable {
+    min-height: 44px; /* iOS 推荐的最小触摸目标 */
+    min-width: 44px;
+  }
+
+  /* 增加按钮间距 */
+  .history-actions,
+  .bottom-nav {
+    gap: 16px;
+  }
+
+  /* 优化输入框 */
+  input,
+  textarea,
+  select {
+    font-size: 16px; /* 防止 iOS 自动缩放 */
+    padding: 12px;
+  }
+
+  /* 优化卡片点击区域 */
+  .history-item,
+  .meal-card,
+  .goal-card {
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+
+  /* 改进滚动性能 */
+  .app-main,
+  .history-items,
+  .meal-timeline {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+  }
+
+  /* 优化图表在小屏幕上的显示 */
+  .chart-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* 防止双击缩放 */
+  * {
+    touch-action: manipulation;
+  }
+
+  /* 优化长按选择 */
+  .selectable-text {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  /* 移除点击高亮 */
+  button,
+  a,
+  .clickable {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* 添加触摸反馈 */
+  button:active,
+  .clickable:active {
+    transform: scale(0.98);
+    opacity: 0.8;
+  }
+}
+
+/* 横屏优化 */
+@media (max-width: 768px) and (orientation: landscape) {
+  .app-header {
+    padding: 20px;
+  }
+
+  .app-header h1 {
+    font-size: 24px;
+  }
+
+  .bottom-nav {
+    padding: 8px 0;
+  }
+
+  .nav-item {
+    padding: 8px 12px;
+  }
+}
+
+/* 超小屏幕优化 */
+@media (max-width: 375px) {
+  .app-header h1 {
+    font-size: 24px;
+  }
+
+  .subtitle {
+    font-size: 13px;
+  }
+
+  .app-main {
+    padding: 16px 8px;
+  }
+
+  .bottom-nav {
+    padding: 8px 0;
+  }
+
+  .nav-label {
+    font-size: 9px;
+  }
+}
+
+/* 大屏手机优化 */
+@media (min-width: 375px) and (max-width: 768px) {
+  .app-main {
+    padding: 24px 16px;
+  }
+
+  .history-item,
+  .meal-card {
+    padding: 20px;
+  }
+}
+
+/* PWA 全屏模式优化 */
+@media (display-mode: standalone) {
+  .app {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: calc(env(safe-area-inset-bottom) + 100px);
+  }
+
+  .bottom-nav {
+    padding-bottom: env(safe-area-inset-bottom);
   }
 }

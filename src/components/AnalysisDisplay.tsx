@@ -4,6 +4,8 @@ import { formatCalories, formatNutrition } from '../utils/dataParser';
 import { saveMeal } from '../services/mealService';
 import EmptyState from './EmptyState';
 import MealTypeSelector from './MealManager/MealTypeSelector';
+import ShareButton from './ShareButton';
+import AISuggestions from './AISuggestions';
 import './AnalysisDisplay.css';
 
 const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({
@@ -251,11 +253,15 @@ const AnalysisDisplay: React.FC<AnalysisDisplayProps> = ({
         </div>
       )}
 
+      {/* AI 健康建议 */}
+      <AISuggestions currentResult={result} showHealthyFoods={true} />
+
       {/* 操作按钮 */}
       <div className="actions-section">
         <button onClick={onNewAnalysis} className="btn btn-primary btn-lg">
           📸 上传新图片
         </button>
+        <ShareButton result={result} />
       </div>
 
       {/* 免责声明 */}

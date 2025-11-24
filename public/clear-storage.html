@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>清理存储空间</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #333;
+      margin-top: 0;
+    }
+    .info {
+      background: #e3f2fd;
+      padding: 15px;
+      border-radius: 4px;
+      margin: 20px 0;
+    }
+    .warning {
+      background: #fff3cd;
+      padding: 15px;
+      border-radius: 4px;
+      margin: 20px 0;
+      border-left: 4px solid #ffc107;
+    }
+    .success {
+      background: #d4edda;
+      padding: 15px;
+      border-radius: 4px;
+      margin: 20px 0;
+      border-left: 4px solid #28a745;
+    }
+    button {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      font-size: 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 10px 5px;
+    }
+    button:hover {
+      background: #45a049;
+    }
+    button.danger {
+      background: #f44336;
+    }
+    button.danger:hover {
+      background: #da190b;
+    }
+    .stats {
+      font-family: monospace;
+      background: #f5f5f5;
+      padding: 10px;
+      border-radius: 4px;
+      margin: 10px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧹 清理存储空间</h1>
+    
+    <div class="info">
+      <strong>💡 提示</strong><br>
+      如果遇到 "STORAGE_FULL" 错误，使用此工具清理存储空间。
+    </div>
+
+    <div id="stats" class="stats">
+      正在检查存储使用情况...
+    </div>
+
+    <h3>清理选项</h3>
+    
+    <button onclick="clearHistory()">
+      🗑️ 清空历史记录
+    </button>
+    
+    <button onclick="clearCache()">
+      💾 清空缓存
+    </button>
+    
+    <button onclick="clearAll()" class="danger">
+      ⚠️ 清空所有数据
+    </button>
+
+    <button onclick="checkStorage()">
+      🔍 重新检查
+    </button>
+
+    <div id="result"></div>
+
+    <div class="warning">
+      <strong>⚠️ 注意</strong><br>
+      清空数据后无法恢复，请谨慎操作。
+    </div>
+  </div>
+
+  <script>
+    function formatBytes(bytes) {
+      if (bytes === 0) return '0 Bytes';
+      const k = 1024;
+      const sizes = ['Bytes', 'KB', 'MB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+    }
+
+    function checkStorage() {
+      const stats = document.getElementById('stats');
+      
+      try {
+        // 检查 LocalStorage
+        const historyData = localStorage.getItem('food_analyzer_history');
+        const historySize = historyData ? historyData.length : 0;
+        const historyCount = historyData ? JSON.parse(historyData).length : 0;
+        
+        // 检查所有 LocalStorage
+        let totalSize = 0;
+        for (let key in localStorage) {
+          if (localStorage.hasOwnProperty(key)) {
+            totalSize += localStorage[key].length;
+          }
+        }
+        
+        stats.innerHTML = `
+          <strong>📊 存储使用情况</strong><br><br>
+          <strong>历史记录：</strong><br>
+          - 记录数：${historyCount} 条<br>
+          - 大小：${formatBytes(historySize)}<br><br>
+          <strong>LocalStorage 总计：</strong><br>
+          - 大小：${formatBytes(totalSize)}<br>
+          - 限制：约 5-10 MB<br>
+          - 使用率：${((totalSize / (5 * 1024 * 1024)) * 100).toFixed(1)}%
+        `;
+        
+        // 检查 IndexedDB 缓存
+        checkIndexedDB();
+      } catch (error) {
+        stats.innerHTML = `<span style="color: red;">❌ 检查失败: ${error.message}</span>`;
+      }
+    }
+
+    function checkIndexedDB() {
+      // 检查缓存数据库
+      const cacheRequest = indexedDB.open('FoodAnalyzerCache', 1);
+      cacheRequest.onsuccess = () => {
+        const db = cacheRequest.result;
+        const tx = db.transaction('analysisResults', 'readonly');
+        const store = tx.objectStore('analysisResults');
+        const countRequest = store.count();
+        
+        countRequest.onsuccess = () => {
+          const stats = document.getElementById('stats');
+          stats.innerHTML += `<br><strong>IndexedDB 缓存：</strong><br>- 记录数：${countRequest.result} 条`;
+        };
+      };
+
+      // 检查历史记录数据库
+      const historyRequest = indexedDB.open('FoodAnalyzerHistory', 1);
+      historyRequest.onsuccess = () => {
+        const db = historyRequest.result;
+        const tx = db.transaction('historyRecords', 'readonly');
+        const store = tx.objectStore('historyRecords');
+        const countRequest = store.count();
+        
+        countRequest.onsuccess = () => {
+          const stats = document.getElementById('stats');
+          stats.innerHTML += `<br><strong>IndexedDB 历史记录：</strong><br>- 记录数：${countRequest.result} 条`;
+        };
+      };
+    }
+
+    function clearHistory() {
+      if (confirm('确定要清空历史记录吗？此操作无法撤销。')) {
+        try {
+          // 清空旧的 LocalStorage 历史记录
+          localStorage.removeItem('food_analyzer_history');
+          // 清空新的 IndexedDB 历史记录
+          indexedDB.deleteDatabase('FoodAnalyzerHistory');
+          showResult('✅ 历史记录已清空', 'success');
+          setTimeout(checkStorage, 500);
+        } catch (error) {
+          showResult('❌ 清空失败: ' + error.message, 'error');
+        }
+      }
+    }
+
+    function clearCache() {
+      if (confirm('确定要清空缓存吗？此操作无法撤销。')) {
+        try {
+          indexedDB.deleteDatabase('FoodAnalyzerCache');
+          showResult('✅ 缓存已清空', 'success');
+          setTimeout(checkStorage, 500);
+        } catch (error) {
+          showResult('❌ 清空失败: ' + error.message, 'error');
+        }
+      }
+    }
+
+    function clearAll() {
+      if (confirm('⚠️ 确定要清空所有数据吗？\n\n这将删除：\n- 历史记录\n- 缓存\n- 所有设置\n\n此操作无法撤销！')) {
+        try {
+          localStorage.clear();
+          indexedDB.deleteDatabase('FoodAnalyzerCache');
+          indexedDB.deleteDatabase('FoodAnalyzerHistory');
+          showResult('✅ 所有数据已清空', 'success');
+          setTimeout(checkStorage, 500);
+        } catch (error) {
+          showResult('❌ 清空失败: ' + error.message, 'error');
+        }
+      }
+    }
+
+    function showResult(message, type) {
+      const result = document.getElementById('result');
+      result.className = type === 'success' ? 'success' : 'warning';
+      result.innerHTML = message;
+      result.style.display = 'block';
+      
+      setTimeout(() => {
+        result.style.display = 'none';
+      }, 5000);
+    }
+
+    // 页面加载时检查
+    window.onload = checkStorage;
+  </script>
+</body>
+</html>

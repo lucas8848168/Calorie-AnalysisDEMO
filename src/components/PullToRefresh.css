@@ -1,0 +1,65 @@
+.pull-to-refresh-container {
+  position: relative;
+  overflow-y: auto;
+  height: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+
+.pull-to-refresh-indicator {
+  position: absolute;
+  top: -80px;
+  left: 0;
+  right: 0;
+  height: 80px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 10;
+}
+
+.pull-to-refresh-indicator.visible {
+  opacity: 1;
+}
+
+.refresh-icon {
+  font-size: 32px;
+  margin-bottom: 8px;
+  transition: transform 0.3s ease;
+}
+
+.refresh-icon.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.refresh-text {
+  font-size: 14px;
+  color: #666;
+  font-weight: 500;
+}
+
+.pull-to-refresh-content {
+  min-height: 100%;
+}
+
+/* 仅在移动设备上启用 */
+@media (min-width: 769px) {
+  .pull-to-refresh-indicator {
+    display: none;
+  }
+  
+  .pull-to-refresh-content {
+    transform: none !important;
+  }
+}

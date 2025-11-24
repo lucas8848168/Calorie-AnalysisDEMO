@@ -4,12 +4,13 @@ import { ImageMetadata, ProcessedImage } from '../types';
 const SUPPORTED_FORMATS = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
-// 优化的压缩参数：平衡识别率、速度和 token 消耗
-const TARGET_MAX_DIMENSION = 1440; // 目标最长边 1280-1600px 的中间值
+// 优化的压缩参数：二分法质量控制
+const TARGET_MAX_DIMENSION = 1280; // 目标最长边 1280px
 const TARGET_MIN_SIZE = 200 * 1024; // 200KB
-const TARGET_MAX_SIZE = 600 * 1024; // 600KB
-const QUALITY_HIGH = 0.75; // 高质量
-const QUALITY_LOW = 0.65; // 低质量
+const TARGET_MAX_SIZE = 300 * 1024; // 300KB
+const QUALITY_HIGH = 0.92; // 高质量起点
+const QUALITY_LOW = 0.60; // 低质量下限
+const MAX_BINARY_SEARCH_ITERATIONS = 8; // 二分法最大迭代次数
 
 /**
  * 验证文件格式
@@ -81,7 +82,7 @@ export async function extractImageMetadata(file: File): Promise<ImageMetadata> {
 }
 
 /**
- * 压缩图片（优化版：平衡识别率、速度和 token 消耗）
+ * 压缩图片（优化版：二分法质量控制 + WebP 优先 + 200-300KB 目标）
  */
 export async function compressImage(
   file: File
@@ -91,29 +92,14 @@ export async function compressImage(
   const img = await loadImage(file);
   const orientedCanvas = await fixImageOrientation(img, file);
   
-  // 计算目标尺寸（1280-1600px）
+  // 计算目标尺寸（固定 1280px 长边）
   let newWidth = orientedCanvas.width;
   let newHeight = orientedCanvas.height;
   const maxDimension = Math.max(newWidth, newHeight);
   
-  // 智能缩放：根据原始尺寸选择目标尺寸
-  let targetDimension = TARGET_MAX_DIMENSION;
-  if (maxDimension < 1280) {
-    // 小图片不放大，保持原尺寸
-    targetDimension = maxDimension;
-  } else if (maxDimension < 2000) {
-    // 中等图片压缩到 1280px
-    targetDimension = 1280;
-  } else if (maxDimension < 3000) {
-    // 大图片压缩到 1440px
-    targetDimension = 1440;
-  } else {
-    // 超大图片压缩到 1600px
-    targetDimension = 1600;
-  }
-  
-  if (maxDimension > targetDimension) {
-    const ratio = targetDimension / maxDimension;
+  // 固定缩放到 1280px（除非原图更小）
+  if (maxDimension > TARGET_MAX_DIMENSION) {
+    const ratio = TARGET_MAX_DIMENSION / maxDimension;
     newWidth = Math.floor(newWidth * ratio);
     newHeight = Math.floor(newHeight * ratio);
   }
@@ -133,47 +119,79 @@ export async function compressImage(
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(orientedCanvas, 0, 0, newWidth, newHeight);
   
-  // 智能质量控制：目标 200KB-600KB
-  let quality = QUALITY_HIGH; // 从 0.75 开始
-  let dataUrl = canvas.toDataURL('image/jpeg', quality);
-  let estimatedSize = Math.floor(dataUrl.length * 0.75);
+  // 尝试 WebP 格式（更高压缩率）
+  const supportsWebP = canvas.toDataURL('image/webp').startsWith('data:image/webp');
+  const format = supportsWebP ? 'webp' : 'jpeg';
+  const mimeType = supportsWebP ? 'image/webp' : 'image/jpeg';
   
-  // 如果文件太大，降低质量
-  if (estimatedSize > TARGET_MAX_SIZE) {
-    // 二分查找最佳质量
-    let minQuality = QUALITY_LOW;
-    let maxQuality = QUALITY_HIGH;
-    let attempts = 0;
+  console.log(`🎨 使用格式: ${format.toUpperCase()}`);
+  
+  // 二分法查找最佳质量（目标 200-300KB）
+  let minQuality = QUALITY_LOW;
+  let maxQuality = QUALITY_HIGH;
+  let bestQuality = QUALITY_HIGH;
+  let bestDataUrl = '';
+  let bestSize = 0;
+  
+  for (let i = 0; i < MAX_BINARY_SEARCH_ITERATIONS; i++) {
+    const quality = (minQuality + maxQuality) / 2;
+    const dataUrl = canvas.toDataURL(mimeType, quality);
+    const estimatedSize = Math.floor(dataUrl.length * 0.75);
     
-    while (attempts < 5 && Math.abs(estimatedSize - TARGET_MAX_SIZE) > 50 * 1024) {
-      quality = (minQuality + maxQuality) / 2;
-      dataUrl = canvas.toDataURL('image/jpeg', quality);
-      estimatedSize = Math.floor(dataUrl.length * 0.75);
+    console.log(`🔍 迭代 ${i + 1}: 质量=${(quality * 100).toFixed(1)}%, 大小=${(estimatedSize / 1024).toFixed(0)}KB`);
+    
+    // 保存当前最佳结果
+    if (estimatedSize >= TARGET_MIN_SIZE && estimatedSize <= TARGET_MAX_SIZE) {
+      bestQuality = quality;
+      bestDataUrl = dataUrl;
+      bestSize = estimatedSize;
       
-      if (estimatedSize > TARGET_MAX_SIZE) {
-        maxQuality = quality;
-      } else {
-        minQuality = quality;
+      // 如果已经很接近目标中值 (250KB)，提前退出
+      const targetMid = (TARGET_MIN_SIZE + TARGET_MAX_SIZE) / 2;
+      if (Math.abs(estimatedSize - targetMid) < 20 * 1024) {
+        console.log(`✅ 找到最佳质量点，提前退出`);
+        break;
       }
-      attempts++;
+    }
+    
+    // 调整搜索范围
+    if (estimatedSize > TARGET_MAX_SIZE) {
+      maxQuality = quality;
+    } else if (estimatedSize < TARGET_MIN_SIZE) {
+      minQuality = quality;
+    } else {
+      // 在目标范围内，尝试向中值靠近
+      const targetMid = (TARGET_MIN_SIZE + TARGET_MAX_SIZE) / 2;
+      if (estimatedSize < targetMid) {
+        minQuality = quality;
+      } else {
+        maxQuality = quality;
+      }
+    }
+    
+    // 如果没有找到更好的结果，保存当前结果
+    if (!bestDataUrl || Math.abs(estimatedSize - (TARGET_MIN_SIZE + TARGET_MAX_SIZE) / 2) < Math.abs(bestSize - (TARGET_MIN_SIZE + TARGET_MAX_SIZE) / 2)) {
+      bestQuality = quality;
+      bestDataUrl = dataUrl;
+      bestSize = estimatedSize;
     }
   }
   
-  // 如果文件太小且质量还有提升空间，可以略微提高质量
-  if (estimatedSize < TARGET_MIN_SIZE && quality < QUALITY_HIGH) {
-    quality = Math.min(quality + 0.05, QUALITY_HIGH);
-    dataUrl = canvas.toDataURL('image/jpeg', quality);
-    estimatedSize = Math.floor(dataUrl.length * 0.75);
+  // 如果二分法没有找到合适的结果，使用最后一次的结果
+  if (!bestDataUrl) {
+    bestQuality = (minQuality + maxQuality) / 2;
+    bestDataUrl = canvas.toDataURL(mimeType, bestQuality);
+    bestSize = Math.floor(bestDataUrl.length * 0.75);
   }
   
-  console.log(`📐 图片压缩完成: ${newWidth}x${newHeight}, 质量: ${(quality * 100).toFixed(0)}%, 大小: ${(estimatedSize / 1024).toFixed(0)}KB`);
+  console.log(`📐 图片压缩完成: ${newWidth}x${newHeight}, 格式=${format.toUpperCase()}, 质量=${(bestQuality * 100).toFixed(0)}%, 大小=${(bestSize / 1024).toFixed(0)}KB`);
   
   return {
-    dataUrl,
+    dataUrl: bestDataUrl,
     originalSize: file.size,
-    compressedSize: estimatedSize,
+    compressedSize: bestSize,
     dimensions: { width: newWidth, height: newHeight },
-    format: 'jpeg',
+    format: format as 'jpeg' | 'webp',
   };
 }
 
@@ -291,6 +309,62 @@ function loadImage(file: File): Promise<HTMLImageElement> {
     };
     
     img.src = url;
+  });
+}
+
+/**
+ * 生成缩略图（用于列表显示）
+ */
+export async function generateThumbnail(
+  dataUrl: string,
+  maxSize: number = 150
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      
+      if (!ctx) {
+        reject(new Error('COMPRESSION_FAILED'));
+        return;
+      }
+      
+      // 计算缩略图尺寸（保持宽高比）
+      let width = img.width;
+      let height = img.height;
+      
+      if (width > height) {
+        if (width > maxSize) {
+          height = (height * maxSize) / width;
+          width = maxSize;
+        }
+      } else {
+        if (height > maxSize) {
+          width = (width * maxSize) / height;
+          height = maxSize;
+        }
+      }
+      
+      canvas.width = width;
+      canvas.height = height;
+      
+      // 绘制缩略图
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, 0, 0, width, height);
+      
+      // 使用较低质量以减小文件大小
+      const thumbnailUrl = canvas.toDataURL('image/jpeg', 0.7);
+      resolve(thumbnailUrl);
+    };
+    
+    img.onerror = () => {
+      reject(new Error('IMAGE_DECODE_ERROR'));
+    };
+    
+    img.src = dataUrl;
   });
 }
 

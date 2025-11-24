@@ -22,6 +22,7 @@ export interface AnalysisResult {
   id: string; // UUID
   timestamp: number; // Unix时间戳
   imageUrl: string; // Base64或ObjectURL
+  thumbnailUrl?: string; // 缩略图URL（用于列表显示）
   foods: FoodItem[];
   totalCalories: number;
   confidence?: string;
@@ -96,7 +97,7 @@ export interface ErrorResponse {
 
 // 组件Props类型
 export interface ImageUploaderProps {
-  onImageProcessed: (processedImage: ProcessedImage) => void;
+  onImageProcessed: (result: AnalysisResult) => void;
   onError: (error: Error) => void;
 }
 
@@ -114,12 +115,12 @@ export interface LoadingIndicatorProps {
   progress?: number;
 }
 
-// 存储接口
+// 存储接口（支持同步和异步）
 export interface HistoryStorage {
-  saveRecord(record: AnalysisResult): void;
-  getRecords(): AnalysisResult[];
-  deleteRecord(timestamp: number): void;
-  clearAll(): void;
+  saveRecord(record: AnalysisResult): void | Promise<void>;
+  getRecords(): AnalysisResult[] | Promise<AnalysisResult[]>;
+  deleteRecord(timestamp: number): void | Promise<void>;
+  clearAll(): void | Promise<void>;
 }
 
 // ============================================
@@ -317,4 +318,105 @@ export interface LocalStorageSchema {
     age?: number;
     gender?: 'male' | 'female';
   };
+  
+  // P2 配额管理数据
+  quota: UserQuota;
+  quotaTransactions: QuotaTransaction[];
+  
+  // 用户管理数据
+  currentUser: User | null;
+  users: User[];
+}
+
+// ============================================
+// P2 配额管理类型定义
+// ============================================
+
+// 用户配额
+export interface UserQuota {
+  userId: string;
+  baseQuota: number; // 基础配额
+  adQuota: number; // 通过广告获得的配额
+  totalUsed: number; // 总使用次数
+  lastResetDate: Date; // 上次重置日期
+  isAdmin: boolean; // 是否管理员
+}
+
+// 配额交易记录
+export interface QuotaTransaction {
+  id: string;
+  userId: string;
+  type: 'use' | 'earn' | 'reset'; // 使用、获得、重置
+  amount: number; // 变化量
+  source: 'base' | 'ad' | 'admin'; // 来源
+  timestamp: Date;
+  notes?: string;
+}
+
+// 广告配置
+export interface AdConfig {
+  provider: string; // 广告提供商
+  adUnitId: string; // 广告单元ID
+  adType: 'rewarded_video' | 'interstitial'; // 广告类型
+  rewardAmount: number; // 奖励配额数量
+  duration?: number; // 广告时长（秒）
+}
+
+// ============================================
+// 用户管理类型定义
+// ============================================
+
+// 用户角色
+export enum UserRole {
+  USER = 'user',
+  ADMIN = 'admin',
+}
+
+// 用户信息
+export interface User {
+  id: string; // 用户ID
+  username: string; // 用户名
+  email?: string; // 邮箱（可选）
+  role: UserRole; // 角色
+  deviceFingerprint: string; // 设备指纹
+  createdAt: Date; // 创建时间
+  lastLoginAt: Date; // 最后登录时间
+  profile?: {
+    displayName?: string;
+    avatar?: string;
+    currentWeight?: number;
+    height?: number;
+    age?: number;
+    gender?: 'male' | 'female';
+  };
+}
+
+// 登录凭证
+export interface LoginCredentials {
+  username: string;
+  password: string;
+}
+
+// 注册信息
+export interface RegisterInfo {
+  username: string;
+  password: string;
+  email?: string;
+}
+
+// 认证响应
+export interface AuthResponse {
+  success: boolean;
+  user?: User;
+  error?: string;
+}
+
+// 设备指纹信息
+export interface DeviceFingerprint {
+  userAgent: string;
+  language: string;
+  platform: string;
+  screenResolution: string;
+  timezone: string;
+  hash: string; // 指纹哈希值
 }

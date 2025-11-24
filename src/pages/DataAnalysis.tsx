@@ -7,6 +7,9 @@ import {
 } from '../components/Charts';
 import { useChartData } from '../hooks';
 import { MealType, MacroNutrition } from '../types';
+import SkeletonLoader from '../components/SkeletonLoader';
+import ExportButton from '../components/ExportButton';
+import { exportMealsToCSV, exportNutritionReportPDF } from '../utils/dataExport';
 import './DataAnalysis.css';
 
 /**
@@ -46,6 +49,26 @@ const DataAnalysis: React.FC = () => {
     // 可以在这里导航到餐次详情或筛选数据
   }, []);
 
+  // 处理导出
+  const handleExport = useCallback((format: 'csv' | 'json' | 'pdf') => {
+    if (format === 'csv') {
+      exportMealsToCSV(allMeals);
+    } else if (format === 'pdf') {
+      const periodMap = {
+        day: '今日',
+        week: '本周',
+        month: '本月',
+      };
+      exportNutritionReportPDF({
+        period: periodMap[timePeriod],
+        totalMeals: summary.totalMeals,
+        avgCalories: summary.avgCalories,
+        totalCalories: summary.totalCalories,
+        nutrition: actualNutrition,
+      });
+    }
+  }, [allMeals, timePeriod, summary, actualNutrition]);
+
   return (
     <div className="data-analysis-page">
       {/* 页面头部 */}
@@ -54,6 +77,9 @@ const DataAnalysis: React.FC = () => {
           <h1 className="page-title">📊 数据分析</h1>
           <p className="page-subtitle">深入了解您的饮食习惯和营养摄入</p>
         </div>
+        {!isLoading && summary.totalMeals > 0 && (
+          <ExportButton onExport={handleExport} />
+        )}
       </div>
 
       {/* 时间维度选择器 */}
@@ -63,8 +89,11 @@ const DataAnalysis: React.FC = () => {
 
       {isLoading ? (
         <div className="loading-state">
-          <div className="loading-spinner"></div>
-          <p>加载数据中...</p>
+          <div className="charts-skeleton">
+            <SkeletonLoader type="chart" />
+            <SkeletonLoader type="chart" />
+            <SkeletonLoader type="chart" />
+          </div>
         </div>
       ) : chartData.length === 0 || summary.totalMeals === 0 ? (
         <div className="empty-state">

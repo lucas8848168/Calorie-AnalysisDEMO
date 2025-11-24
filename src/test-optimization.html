@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>优化测试页面</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+    }
+    .test-section {
+      margin: 20px 0;
+      padding: 20px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+    }
+    .test-section h2 {
+      margin-top: 0;
+    }
+    button {
+      padding: 10px 20px;
+      margin: 5px;
+      cursor: pointer;
+    }
+    .log {
+      background: #f5f5f5;
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 12px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .success { color: green; }
+    .error { color: red; }
+    .warning { color: orange; }
+  </style>
+</head>
+<body>
+  <h1>🧪 图片处理优化测试</h1>
+  
+  <div class="test-section">
+    <h2>1. 测试图片压缩</h2>
+    <input type="file" id="fileInput" accept="image/*">
+    <button onclick="testCompression()">测试压缩</button>
+    <div id="compressionLog" class="log"></div>
+  </div>
+  
+  <div class="test-section">
+    <h2>2. 测试本地检测</h2>
+    <button onclick="testDetection()">测试 MobileNet</button>
+    <div id="detectionLog" class="log"></div>
+  </div>
+  
+  <div class="test-section">
+    <h2>3. 测试缓存</h2>
+    <button onclick="testCache()">测试缓存</button>
+    <button onclick="clearCache()">清空缓存</button>
+    <div id="cacheLog" class="log"></div>
+  </div>
+  
+  <div class="test-section">
+    <h2>4. 测试完整流程</h2>
+    <button onclick="testFullFlow()">完整测试</button>
+    <div id="fullFlowLog" class="log"></div>
+  </div>
+
+  <script type="module">
+    import { processImage } from './utils/imageProcessor.js';
+    import { detectFood } from './services/foodDetector.js';
+    import { getCachedResult, saveCachedResult, getCacheStats } from './services/cacheService.js';
+    
+    window.testCompression = async function() {
+      const log = document.getElementById('compressionLog');
+      log.innerHTML = '开始测试...<br>';
+      
+      const file = document.getElementById('fileInput').files[0];
+      if (!file) {
+        log.innerHTML += '<span class="error">请先选择文件</span><br>';
+        return;
+      }
+      
+      try {
+        log.innerHTML += `原始文件: ${file.name}, ${(file.size / 1024).toFixed(0)}KB<br>`;
+        const result = await processImage(file);
+        log.innerHTML += `<span class="success">✅ 压缩成功</span><br>`;
+        log.innerHTML += `尺寸: ${result.dimensions.width}x${result.dimensions.height}<br>`;
+        log.innerHTML += `格式: ${result.format.toUpperCase()}<br>`;
+        log.innerHTML += `压缩后: ${(result.compressedSize / 1024).toFixed(0)}KB<br>`;
+        log.innerHTML += `压缩率: ${((1 - result.compressedSize / result.originalSize) * 100).toFixed(1)}%<br>`;
+      } catch (error) {
+        log.innerHTML += `<span class="error">❌ 错误: ${error.message}</span><br>`;
+      }
+    };
+    
+    window.testDetection = async function() {
+      const log = document.getElementById('detectionLog');
+      log.innerHTML = '加载 MobileNet 模型...<br>';
+      
+      const file = document.getElementById('fileInput').files[0];
+      if (!file) {
+        log.innerHTML += '<span class="error">请先选择文件</span><br>';
+        return;
+      }
+      
+      try {
+        const processed = await processImage(file);
+        log.innerHTML += '开始检测...<br>';
+        const result = await detectFood(processed.dataUrl);
+        log.innerHTML += `<span class="success">✅ 检测完成</span><br>`;
+        log.innerHTML += `是否食物: ${result.isFood ? '是' : '否'}<br>`;
+        log.innerHTML += `置信度: ${(result.confidence * 100).toFixed(1)}%<br>`;
+        log.innerHTML += `原因: ${result.reason}<br>`;
+        log.innerHTML += `Top3:<br>`;
+        result.predictions.slice(0, 3).forEach((p, i) => {
+          log.innerHTML += `  ${i + 1}. ${p.className} (${(p.probability * 100).toFixed(1)}%)<br>`;
+        });
+      } catch (error) {
+        log.innerHTML += `<span class="error">❌ 错误: ${error.message}</span><br>`;
+      }
+    };
+    
+    window.testCache = async function() {
+      const log = document.getElementById('cacheLog');
+      log.innerHTML = '测试缓存...<br>';
+      
+      try {
+        const stats = await getCacheStats();
+        log.innerHTML += `<span class="success">✅ 缓存可用</span><br>`;
+        log.innerHTML += `缓存数量: ${stats.count}<br>`;
+      } catch (error) {
+        log.innerHTML += `<span class="error">❌ 错误: ${error.message}</span><br>`;
+      }
+    };
+    
+    window.clearCache = async function() {
+      const log = document.getElementById('cacheLog');
+      try {
+        indexedDB.deleteDatabase('FoodAnalyzerCache');
+        log.innerHTML = '<span class="success">✅ 缓存已清空</span><br>';
+      } catch (error) {
+        log.innerHTML = `<span class="error">❌ 错误: ${error.message}</span><br>`;
+      }
+    };
+    
+    window.testFullFlow = async function() {
+      const log = document.getElementById('fullFlowLog');
+      log.innerHTML = '开始完整测试...<br>';
+      
+      const file = document.getElementById('fileInput').files[0];
+      if (!file) {
+        log.innerHTML += '<span class="error">请先选择文件</span><br>';
+        return;
+      }
+      
+      try {
+        // 步骤 1: 压缩
+        log.innerHTML += '📸 步骤 1/4: 图片压缩...<br>';
+        const processed = await processImage(file);
+        log.innerHTML += `✅ 压缩完成: ${(processed.compressedSize / 1024).toFixed(0)}KB<br>`;
+        
+        // 步骤 2: 检测
+        log.innerHTML += '🤖 步骤 2/4: 本地检测...<br>';
+        const detection = await detectFood(processed.dataUrl);
+        log.innerHTML += `✅ 检测完成: ${detection.reason}<br>`;
+        
+        // 步骤 3: 缓存
+        log.innerHTML += '💾 步骤 3/4: 检查缓存...<br>';
+        const cached = await getCachedResult(processed.dataUrl);
+        if (cached) {
+          log.innerHTML += '<span class="success">✅ 缓存命中</span><br>';
+        } else {
+          log.innerHTML += '📭 缓存未命中<br>';
+        }
+        
+        log.innerHTML += '<span class="success">✅ 所有步骤完成</span><br>';
+      } catch (error) {
+        log.innerHTML += `<span class="error">❌ 错误: ${error.message}</span><br>`;
+        console.error(error);
+      }
+    };
+  </script>
+</body>
+</html>
