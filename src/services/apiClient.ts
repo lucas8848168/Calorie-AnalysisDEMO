@@ -1,5 +1,5 @@
 import { AnalyzeRequest, AnalyzeResponse, BoundingBox } from '../types';
-import { analyzeFoodDirect } from './directApiClient';
+import { analyzeFood as analyzeFoodDirect } from './directApiClient';
 
 // 使用相对路径，自动使用当前域名（Cloudflare Pages Functions）
 // 开发环境可以通过 VITE_API_ENDPOINT 指定独立的 Worker URL
