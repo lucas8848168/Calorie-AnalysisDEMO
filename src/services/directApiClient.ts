@@ -6,7 +6,8 @@
 import { AnalyzeResponse } from '../types';
 
 // ⚠️ 演示模式：API 密钥直接在前端（不安全，仅用于演示）
-const DEMO_API_KEY = import.meta.env.VITE_DOUBAO_API_KEY || '';
+// 优先使用环境变量，如果没有则使用硬编码的演示密钥
+const DEMO_API_KEY = import.meta.env.VITE_DOUBAO_API_KEY || '4efae4d9-de12-4ec1-b827-928c0d224d20';
 const API_ENDPOINT = import.meta.env.VITE_DOUBAO_API_ENDPOINT || 'https://ark.cn-beijing.volces.com/api/v3';
 
 const PROMPT_TEMPLATE = `分析图片中的食物，返回JSON。
