@@ -103,7 +103,7 @@ const requestBody = {
 
 ### workers/.dev.vars
 ```bash
-DOUBAO_API_KEY=4efae4d9-de12-4ec1-b827-928c0d224d20
+DOUBAO_API_KEY=YOUR_API_KEY_HERE
 DOUBAO_API_ENDPOINT=https://ark.cn-beijing.volces.com/api/v3
 
 # Mock 模式已关闭，使用真实 API
