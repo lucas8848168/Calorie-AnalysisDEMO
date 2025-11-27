@@ -35,6 +35,9 @@ jobs:
         run: npm run build
         env:
           GITHUB_ACTIONS: true
+          VITE_USE_DIRECT_API: true
+          VITE_DOUBAO_API_KEY: ${{ secrets.DOUBAO_API_KEY }}
+          VITE_DOUBAO_API_ENDPOINT: https://ark.cn-beijing.volces.com/api/v3
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

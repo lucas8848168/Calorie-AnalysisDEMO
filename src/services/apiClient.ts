@@ -1,8 +1,10 @@
 import { AnalyzeRequest, AnalyzeResponse, BoundingBox } from '../types';
+import { analyzeFoodDirect } from './directApiClient';
 
 // 使用相对路径，自动使用当前域名（Cloudflare Pages Functions）
 // 开发环境可以通过 VITE_API_ENDPOINT 指定独立的 Worker URL
 const isDevelopment = import.meta.env.DEV;
+const USE_DIRECT_API = import.meta.env.VITE_USE_DIRECT_API === 'true';
 const API_ENDPOINT = isDevelopment 
   ? (import.meta.env.VITE_API_ENDPOINT || 'http://localhost:8787')
   : ''; // 生产环境使用相对路径（同域名）
@@ -20,6 +22,15 @@ export async function analyzeFood(
   format: string,
   regions?: BoundingBox[]
 ): Promise<AnalyzeResponse> {
+  // 如果启用直接 API 调用（GitHub Pages 部署）
+  if (USE_DIRECT_API) {
+    console.log('🔗 使用直接 API 调用模式（GitHub Pages）');
+    return await analyzeFoodDirect(imageDataUrl, format);
+  }
+
+  // 否则使用后端代理（Cloudflare Pages Functions）
+  console.log('🔗 使用后端代理模式（Cloudflare Pages）');
+  
   // 第一次尝试：正常超时
   try {
     return await analyzeFoodWithTimeout(imageDataUrl, format, REQUEST_TIMEOUT, regions);
